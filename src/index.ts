@@ -149,7 +149,7 @@ export function apply(ctx: Context, config: ConfigType) {
         
           if (typeof receivedData === 'string') {
             console.log(`接收到客户端消息: ${receivedData}`);
-            sendMessage_ = JSON.parse(receivedData).params.message;
+            sendMessage_ = JSON.parse(receivedData).message;
           } else if (receivedData instanceof ArrayBuffer) {
             console.log('接收到二进制数据');
             // 如果需要处理二进制数据，请在此添加相应逻辑
