@@ -1,0 +1,31 @@
+{
+  "name": "koishi-plugin-connect-chatbridge",
+  "description": "连接QQBot和修改后的ChatBridge，用ws转发频道和MC消息。",
+  "version": "1.0.0",
+  "contributors": [
+    "Kxy051 <a2476675847@gmail.com>"
+  ],
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "dist"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/Kxy051/koishi-plugin-connect-chatbridge",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kxy051/koishi-plugin-connect-chatbridge.git"
+  },
+  "keywords": [
+    "chatbot",
+    "koishi",
+    "plugin"
+  ],
+  "peerDependencies": {
+    "koishi": "^4.16.6",
+    "ws": "*"
+  },
+  "preview": true,
+  "hidden": true
+}
