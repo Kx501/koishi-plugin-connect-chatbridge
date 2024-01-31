@@ -1,4 +1,4 @@
-import { Command, Context, Schema, Session } from 'koishi';
+import { Command, Context, Schema, Session, Logger } from 'koishi';
 import * as WebSocket from 'ws';
 import axios from 'axios';
 
@@ -41,6 +41,7 @@ export const Config: Schema<ConfigType> = Schema.intersect([
 
 export function apply(ctx: Context, config: ConfigType) {
   let server: WebSocket.Server | null = null;
+  let logger = new Logger('connect-chatbridge')
   const bot = ctx.bots[`qqguild:${config.机器人账号}`];
 
   ctx.on('dispose', () => {
@@ -142,16 +143,16 @@ export function apply(ctx: Context, config: ConfigType) {
       const accessToken = wsUrl.searchParams.get('access_token');
 
       if (config.token === accessToken) {
-        console.log('握手成功，Token 验证通过。');
+        logger.info('Token 验证通过。');
         socket.addEventListener('message', (event: WebSocket.MessageEvent) => {
           const receivedData = event.data;
           let sendMessage_;
         
           if (typeof receivedData === 'string') {
-            console.log(`接收到客户端消息: ${receivedData}`);
+            logger.debug(`接收到客户端消息: ${receivedData}`);
             sendMessage_ = JSON.parse(receivedData).message;
           } else if (receivedData instanceof ArrayBuffer) {
-            console.log('接收到二进制数据');
+            logger.debug('接收到二进制数据');
             // 如果需要处理二进制数据，请在此添加相应逻辑
             return;
           }
@@ -160,23 +161,23 @@ export function apply(ctx: Context, config: ConfigType) {
         });
 
         socket.addEventListener('close', (event) => {
-          console.log(event.code === 1006 ? '客户端成功断开' : `连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
+          logger.info(event.code === 1006 ? '客户端成功断开' : `连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
         });
       } else {
         socket.close();
-        console.log('无效的 Token，连接已终止。');
+        logger.info('无效的 Token，连接已终止。');
         return;
       }
     });
 
-    console.log('WebSocket 服务器已启动。');
+    logger.debug('WebSocket 服务器已启动。');
   }
 
   function closeServer() {
     if (server) {
       server.clients.forEach(client => client.terminate());
       server.close();
-      console.log(server.clients.size > 0 ? '已关闭未正确启动的 WebSocket 服务器。' : 'WebSocket 服务器已关闭。');
+      logger.debug(server.clients.size > 0 ? '已关闭未正确启动的 WebSocket 服务器。' : 'WebSocket 服务器已关闭。');
     }
   }
 
@@ -190,29 +191,33 @@ export function apply(ctx: Context, config: ConfigType) {
   function sendMessageToClients(messagePacket) {
     server.clients.forEach(client => {
       client.send(messagePacket);
-      console.log('发送消息成功！');
+      logger.debug('发送消息成功！');
     });
   }
 
   function processWebSocketMessage(sendMessage_) {
-    if (!/\[.*?\] <.*?>/.test(sendMessage_)) {
-      bot.broadcast([config.收发消息的频道], `${sendMessage_}`);
-    } else {
-      let messageParts = sendMessage_.split(' ');
-      if (messageParts.length > 2) {
-        let modifiedMessage = messageParts.map((part, i) => {
-          if (i === 1) {
-            let dynamicContent = part.match(/<(.+?)>/)[1];
-            return `[${dynamicContent}]`;
+    try{
+      if (!/\[.*?\] <.*?>/.test(sendMessage_)) {
+        bot.broadcast([config.收发消息的频道], `${sendMessage_}`);
+      } else {
+        let messageParts = sendMessage_.split(' ');
+        if (messageParts.length > 2) {
+          let modifiedMessage = messageParts.map((part, i) => {
+            if (i === 1) {
+              let dynamicContent = part.match(/<(.+?)>/)[1];
+              return `[${dynamicContent}]`;
+            }
+            else if (i !== 2 || !config.指令转发MC消息) {
+              return part;
+            }
+          }).filter(Boolean).join(' ');
+          if (!config.指令转发MC消息 || (config.指令转发MC消息 && messageParts[2] === config.游戏内触发指令)) {
+          bot.broadcast([config.收发消息的频道], `${modifiedMessage}`);
           }
-          else if (i !== 2 || !config.指令转发MC消息) {
-            return part;
-          }
-        }).filter(Boolean).join(' ');
-        if (!config.指令转发MC消息 || (config.指令转发MC消息 && messageParts[2] === config.游戏内触发指令)) {
-        bot.broadcast([config.收发消息的频道], `${modifiedMessage}`);
         }
       }
+    } catch (error) {
+      logger.error("发生错误:", error);
     }
   }
 }
