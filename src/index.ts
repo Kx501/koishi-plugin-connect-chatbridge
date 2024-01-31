@@ -166,7 +166,9 @@ export function apply(ctx: Context, config: ConfigType) {
         });
 
         socket.addEventListener('close', (event) => {
-          logger.info(event.code === 1006 ? '客户端成功断开' : `连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
+          if (event.code !== 1006) {
+            logger.info(`连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
+          }
         });
       } else {
         socket.close();
