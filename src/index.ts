@@ -46,12 +46,17 @@ export function apply(ctx: Context, config: ConfigType) {
 
   ctx.on('dispose', () => {
     closeServer();
+    logger.info('WebSocket 服务器已关闭。');
   });
 
   ctx.on('ready', () => {
-    closeServer();
+    if (server) {
+      closeServer();
+      logger.info('已关闭未正确关闭的 WebSocket 服务器。');
+    }
     if (config.enable) {
       startServer();
+      logger.info('WebSocket 服务器已启动。');
     }
   });
 
@@ -143,7 +148,7 @@ export function apply(ctx: Context, config: ConfigType) {
       const accessToken = wsUrl.searchParams.get('access_token');
 
       if (config.token === accessToken) {
-        logger.info('Token 验证通过。');
+        logger.info('Token 验证通过，连接成功。');
         socket.addEventListener('message', (event: WebSocket.MessageEvent) => {
           const receivedData = event.data;
           let sendMessage_;
@@ -169,16 +174,11 @@ export function apply(ctx: Context, config: ConfigType) {
         return;
       }
     });
-
-    logger.debug('WebSocket 服务器已启动。');
   }
 
   function closeServer() {
-    if (server) {
-      server.clients.forEach(client => client.terminate());
-      server.close();
-      logger.debug(server.clients.size > 0 ? '已关闭未正确启动的 WebSocket 服务器。' : 'WebSocket 服务器已关闭。');
-    }
+    server.clients.forEach(client => client.terminate());
+    server.close();
   }
 
   function createMessagePacket(session, messageData) {
