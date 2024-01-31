@@ -149,20 +149,20 @@ export function apply(ctx: Context, config: ConfigType) {
 
       if (config.token === accessToken) {
         logger.info('Token 验证通过，连接成功。');
-        socket.addEventListener('message', (event: WebSocket.MessageEvent) => {
+        socket.addEventListener('message', async (event: WebSocket.MessageEvent) => {
           const receivedData = event.data;
           let sendMessage_;
         
           if (typeof receivedData === 'string') {
             logger.debug(`接收到客户端消息: ${receivedData}`);
-            sendMessage_ = JSON.parse(receivedData).message;
+            sendMessage_ = await JSON.parse(receivedData).message;
           } else if (receivedData instanceof ArrayBuffer) {
             logger.debug('接收到二进制数据');
             // 如果需要处理二进制数据，请在此添加相应逻辑
             return;
           }
         
-          processWebSocketMessage(sendMessage_);
+          await processWebSocketMessage(sendMessage_);
         });
 
         socket.addEventListener('close', (event) => {
@@ -197,10 +197,10 @@ export function apply(ctx: Context, config: ConfigType) {
     });
   }
 
-  function processWebSocketMessage(sendMessage_) {
+  async function processWebSocketMessage(sendMessage_) {
     try{
       if (!/\[.*?\] <.*?>/.test(sendMessage_)) {
-        bot.broadcast([config.收发消息的频道], `${sendMessage_}`);
+        await bot.broadcast([config.收发消息的频道], `${sendMessage_}`);
       } else {
         let messageParts = sendMessage_.split(' ');
         if (messageParts.length > 2) {
@@ -214,7 +214,7 @@ export function apply(ctx: Context, config: ConfigType) {
             }
           }).filter(Boolean).join(' ');
           if (!config.指令转发MC消息 || (config.指令转发MC消息 && messageParts[2] === config.游戏内触发指令)) {
-          bot.broadcast([config.收发消息的频道], `${modifiedMessage}`);
+          await bot.broadcast([config.收发消息的频道], `${modifiedMessage}`);
           }
         }
       }
