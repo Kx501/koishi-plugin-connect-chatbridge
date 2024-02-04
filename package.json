@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-connect-chatbridge",
   "description": "连接QQBot和修改后的ChatBridge， 用ws转发频道和MC消息。",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "contributors": [
     "Kxy051 <a2476675847@gmail.com>"
   ],
