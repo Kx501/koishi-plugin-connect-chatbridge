@@ -40,7 +40,7 @@ export const Config: Schema<ConfigType> = Schema.intersect([
 ])
 
 export function apply(ctx: Context, config: ConfigType) {
-  const server = new WebSocket.Server({ port: config.port });
+  let server: WebSocket.Server | null = null;
   const logger = new Logger('connect-chatbridge')
   const bot = ctx.bots[`qqguild:${config.机器人账号}`];
 
@@ -141,6 +141,7 @@ export function apply(ctx: Context, config: ConfigType) {
   }
 
   function startServer() {
+    server = new WebSocket.Server({ port: config.port });
     server.on('connection', (socket, req) => {
       const wsUrl = new URL(req.url, `http://${req.headers.host}`);
       const accessToken = wsUrl.searchParams.get('access_token');
