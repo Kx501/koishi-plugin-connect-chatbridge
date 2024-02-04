@@ -40,9 +40,9 @@ export const Config: Schema<ConfigType> = Schema.intersect([
 ])
 
 export function apply(ctx: Context, config: ConfigType) {
-  let server: WebSocket.Server | null = null;
-  let logger = new Logger('connect-chatbridge')
-  let bot = ctx.bots[`qqguild:${config.机器人账号}`];
+  const server = new WebSocket.Server({ port: config.port });
+  const logger = new Logger('connect-chatbridge')
+  const bot = ctx.bots[`qqguild:${config.机器人账号}`];
 
   ctx.on('dispose', () => {
     closeServer();
@@ -141,8 +141,6 @@ export function apply(ctx: Context, config: ConfigType) {
   }
 
   function startServer() {
-    server = new WebSocket.Server({ port: config.port });
-
     server.on('connection', (socket, req) => {
       const wsUrl = new URL(req.url, `http://${req.headers.host}`);
       const accessToken = wsUrl.searchParams.get('access_token');
@@ -150,19 +148,18 @@ export function apply(ctx: Context, config: ConfigType) {
       if (config.token === accessToken) {
         logger.info('Token 验证通过，连接成功。');
         socket.addEventListener('message', (event: WebSocket.MessageEvent) => {
-          const receivedData = event.data;
+          let receivedData = event.data;
           let sendMessage_;
         
           if (typeof receivedData === 'string') {
             logger.debug(`接收到客户端消息: ${receivedData}`);
             sendMessage_ = JSON.parse(receivedData).message;
+            processWebSocketMessage(sendMessage_);
           } else if (receivedData instanceof ArrayBuffer) {
             logger.debug('接收到二进制数据');
             // 如果需要处理二进制数据，请在此添加相应逻辑
             return;
           }
-        
-          processWebSocketMessage(sendMessage_);
         });
 
         socket.addEventListener('close', (event) => {
@@ -197,29 +194,29 @@ export function apply(ctx: Context, config: ConfigType) {
     });
   }
 
-  function processWebSocketMessage(sendMessage_) {
+  async function processWebSocketMessage(sendMessage_) {
     try{
       if (!/\[.*?\] <.*?>/.test(sendMessage_)) {
-        bot.broadcast([config.收发消息的频道], `${sendMessage_}`);
+        await bot.broadcast([config.收发消息的频道], `${sendMessage_}`);
       } else {
         let messageParts = sendMessage_.split(' ');
         if (messageParts.length > 2) {
           let modifiedMessage = messageParts.map((part, i) => {
             if (i === 1) {
               let dynamicContent = part.match(/<(.+?)>/)[1];
-              return `[${dynamicContent}]`;
+              return `${dynamicContent}说: `;
             }
             else if (i !== 2 || !config.指令转发MC消息) {
               return part;
             }
           }).filter(Boolean).join(' ');
           if (!config.指令转发MC消息 || (config.指令转发MC消息 && messageParts[2] === config.游戏内触发指令)) {
-          bot.broadcast([config.收发消息的频道], `${modifiedMessage}`);
+          await bot.broadcast([config.收发消息的频道], `${modifiedMessage}`);
           }
         }
       }
     } catch (error) {
-      logger.error("发生错误:", error);
+      logger.error('发生错误，请尝试重启插件: ', error);
     }
   }
 }
