@@ -12,6 +12,10 @@ interface ConfigType {
     游戏内触发指令?: string;
     urlAppId: string;
     urlAppSecret: string;
+    使用被动方式转发: boolean;
+    等待触发时长: number;
+    使用备用频道: boolean;
+    备用转发频道: string;
 }
 export declare const Config: Schema<ConfigType>;
 export declare function apply(ctx: Context, config: ConfigType): void;

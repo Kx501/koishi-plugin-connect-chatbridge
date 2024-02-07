@@ -16,6 +16,10 @@ interface ConfigType {
   游戏内触发指令?: string;
   urlAppId: string;
   urlAppSecret: string;
+  使用被动方式转发: boolean;
+  等待触发时长: number;
+  使用备用频道: boolean;
+  备用转发频道: string;
 }
 
 export const Config: Schema<ConfigType> = Schema.intersect([
@@ -32,19 +36,29 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     指令转发MC消息: Schema.boolean().default(false).description('直接转发 Minecraft 消息到 QQ'),
     游戏内触发指令: Schema.string().default('qq').description('Minecraft 内发送消息到 QQ 的指令，如果有前缀请加上。'),
   }).description('消息相关设置'),
-
   Schema.object({
     urlAppId: Schema.string().role('secret').description('短链接服务的 id').deprecated(),
-    urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里').required(),
-  }).description('短链接服务相关设置')
+    urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required(),
+  }).description('短链接服务相关设置'),
+  Schema.object({
+    使用被动方式转发: Schema.boolean().default(false).description('当频道内有人发言时才发送消息，配合触发时长使用。超时采用主动发送。').experimental(),
+    等待触发时长: Schema.number().default(2000).description('(毫秒)，启用后转发到 QQ 的消息会有延迟。效果自行测试。').experimental(),
+    使用备用频道: Schema.boolean().default(false).description('如果采用主动消息转发，在单个频道推送上限后向备用频道推送。').experimental(),
+    备用转发频道: Schema.string().description('备用的频道号').experimental(),
+  }).description('其他设置')
 ])
 
 export function apply(ctx: Context, config: ConfigType) {
   let server: WebSocket.Server | null = null;
-  const logger = new Logger('connect-chatbridge')
+  const logger = new Logger('connect-chatbridge');
   const bot = ctx.bots[`qqguild:${config.机器人账号}`];
+  let sessionFlag = false;
+  let max = false;
+  let max_ = false;
+  let messageQueue  = []
 
   ctx.on('dispose', () => {
+    // 存储
     closeServer();
     logger.info('WebSocket 服务器已关闭。');
   });
@@ -55,13 +69,24 @@ export function apply(ctx: Context, config: ConfigType) {
       logger.info('已关闭未正确关闭的 WebSocket 服务器。');
     }
     if (config.enable) {
+      logger.debug('调试模式开启！');
       startServer();
       logger.info('WebSocket 服务器已启动。');
     }
   });
 
   ctx.middleware(async (session, next) => {
-    if (server && server.clients.size > 0 && session.event._data.d.channel_id == config.收发消息的频道) {
+    if (server && server.clients.size > 0 && session.event._data.d.channel_id === config.收发消息的频道) {
+      if(config.使用被动方式转发 && sessionFlag) {
+        logger.debug(`将被动发送消息队列: ${messageQueue}`);
+        const messageQueue_ = messageQueue.length
+        for (let i = 0; i < messageQueue_; i++) {
+          await session.send(messageQueue[i]);
+        }
+        logger.debug('被动方式转发成功');
+        sessionFlag = false;
+        messageQueue = [];
+      }
       const messageData = await processMessage(session.event);
       const messagePacket = createMessagePacket(session, messageData);
 
@@ -148,13 +173,13 @@ export function apply(ctx: Context, config: ConfigType) {
 
       if (config.token === accessToken) {
         logger.info('Token 验证通过，连接成功。');
+
         socket.addEventListener('message', (event: WebSocket.MessageEvent) => {
-          let receivedData = event.data;
-          let sendMessage_;
-        
+        const receivedData = event.data;
+          
           if (typeof receivedData === 'string') {
-            logger.debug(`接收到客户端消息: ${receivedData}`);
-            sendMessage_ = JSON.parse(receivedData).message;
+            logger.debug(`接收到MC消息: ${receivedData}`);
+            const sendMessage_ = JSON.parse(receivedData).message;
             processWebSocketMessage(sendMessage_);
           } else if (receivedData instanceof ArrayBuffer) {
             logger.debug('接收到二进制数据');
@@ -177,7 +202,8 @@ export function apply(ctx: Context, config: ConfigType) {
   }
 
   function closeServer() {
-    server.clients.forEach(client => client.terminate());
+    const client = server.clients.values().next().value;
+    client.terminate()
     server.close();
   }
 
@@ -189,22 +215,47 @@ export function apply(ctx: Context, config: ConfigType) {
   }
 
   function sendMessageToClients(messagePacket) {
-    server.clients.forEach(client => {
-      client.send(messagePacket);
-      logger.debug('发送消息成功！');
-    });
+    const client = server.clients.values().next().value;
+    logger.debug(`将转发QQ消息: ${messagePacket}`)
+    client.send(messagePacket);
+    logger.debug('QQ消息转发成功！');
   }
 
   async function processWebSocketMessage(sendMessage_) {
-    try{
+    try {
+      if (max && max_) return;
+      const broadcastMessage = async (message_) => {
+        if (config.使用被动方式转发) {
+          messageQueue.push(message_);
+          if (!sessionFlag) {
+            sessionFlag = true;
+            ctx.setTimeout(async () => {
+              logger.debug('计时结束');
+              if (sessionFlag) {
+                logger.debug(`将主动发送消息队列: ${messageQueue}`);
+                const messageQueue_ = messageQueue.length
+                for (let i = 0; i < messageQueue_; i++) {
+                  await bot.broadcast([config.收发消息的频道], messageQueue[i]);
+                }
+                sessionFlag = false;
+                messageQueue = [];
+              }
+            }, config.等待触发时长);
+            logger.debug('开始计时');
+          }
+        } else {
+          await bot.broadcast([config.收发消息的频道], `${message_}`);
+        }
+      };
+  
       if (!/\[.*?\] <.*?>/.test(sendMessage_)) {
-        await bot.broadcast([config.收发消息的频道], `${sendMessage_}`);
+        await broadcastMessage(sendMessage_);
       } else {
-        let messageParts = sendMessage_.split(' ');
+        const messageParts = sendMessage_.split(' ');
         if (messageParts.length > 2) {
-          let modifiedMessage = messageParts.map((part, i) => {
+          const modifiedMessage = messageParts.map((part, i) => {
             if (i === 1) {
-              let dynamicContent = part.match(/<(.+?)>/)[1];
+              const dynamicContent = part.match(/<(.+?)>/)[1];
               return `${dynamicContent}说: `;
             }
             else if (i !== 2 || !config.指令转发MC消息) {
@@ -212,12 +263,32 @@ export function apply(ctx: Context, config: ConfigType) {
             }
           }).filter(Boolean).join(' ');
           if (!config.指令转发MC消息 || (config.指令转发MC消息 && messageParts[2] === config.游戏内触发指令)) {
-          await bot.broadcast([config.收发消息的频道], `${modifiedMessage}`);
+          await broadcastMessage(modifiedMessage)
           }
         }
       }
     } catch (error) {
       logger.error('发生错误，请尝试重启插件: ', error);
+      // 主动推送上限，没遇到过，暂时不管
+      if (error.message.includes('上限')) {
+        if (config.使用备用频道) {
+          config.收发消息的频道 = config.备用转发频道;
+          if (!max) {
+            max = true;
+            const messageQueue_ = messageQueue.length
+            for (let i = 0; i < messageQueue_; i++) {
+              await bot.broadcast([config.收发消息的频道], messageQueue[i]);
+            }
+            sessionFlag = false;
+            messageQueue = [];
+          } else {
+            max_ = true;
+          }
+        } else {
+          max = true;
+          max_ = true;
+        }
+      }
     }
   }
 }
