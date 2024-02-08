@@ -283,12 +283,11 @@ export function apply(ctx: Context, config: ConfigType) {
         }
       }
     } catch (error) {
-      // 测试
       if (bot === undefined) {
         bot = ctx.bots[`qqguild:${config.机器人账号}`];
         logger.debug('重新初始化 bot！')
       }
-      // 主动推送上限，没遇到过，暂时不管
+      // 主动推送上限，没遇到过，后续添加
       else if (error.message.includes('上限')) {
         logger.warn('频道推送上限！');
         if (config.使用备用频道) {
