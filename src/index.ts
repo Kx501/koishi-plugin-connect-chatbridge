@@ -41,8 +41,8 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required(),
   }).description('短链接服务相关设置'),
   Schema.object({
-    使用被动方式转发: Schema.boolean().default(false).description('当频道内有人发言时才发送消息，配合触发时长使用。超时采用主动发送。').experimental(),
-    等待触发时长: Schema.number().default(2000).description('(毫秒)，启用后转发到 QQ 的消息会有延迟。效果自行测试。').experimental(),
+    使用被动方式转发: Schema.boolean().default(false).description('当频道内有人发言时才发送消息，配合触发时长使用。').experimental(),
+    等待触发时长: Schema.number().default(2000).description('(毫秒) 超时采用主动发送，启用后转发消息到 QQ 会有延迟。效果自行测试。').experimental(),
     使用备用频道: Schema.boolean().default(false).description('如果采用主动消息转发，在单个频道推送上限后向备用频道推送。').experimental(),
     备用转发频道: Schema.string().description('备用的频道号').experimental(),
   }).description('其他设置')
@@ -51,11 +51,12 @@ export const Config: Schema<ConfigType> = Schema.intersect([
 export function apply(ctx: Context, config: ConfigType) {
   let server: WebSocket.Server | null = null;
   const logger = new Logger('connect-chatbridge');
-  const bot = ctx.bots[`qqguild:${config.机器人账号}`];
+  let bot = ctx.bots[`qqguild:${config.机器人账号}`];
   let sessionFlag = false;
+  let triggerSuccess = false;
+  let messageQueue  = [];
   let max = false;
   let max_ = false;
-  let messageQueue  = []
 
   ctx.on('dispose', () => {
     // 存储
@@ -69,6 +70,11 @@ export function apply(ctx: Context, config: ConfigType) {
       logger.info('已关闭未正确关闭的 WebSocket 服务器。');
     }
     if (config.enable) {
+      // 测试
+      if (bot.broadcast === undefined) {
+        bot = ctx.bots[`qqguild:${config.机器人账号}`];
+        logger.debug('初始化 bot！')
+      }
       logger.debug('调试模式开启！');
       startServer();
       logger.info('WebSocket 服务器已启动。');
@@ -77,15 +83,16 @@ export function apply(ctx: Context, config: ConfigType) {
 
   ctx.middleware(async (session, next) => {
     if (server && server.clients.size > 0 && session.event._data.d.channel_id === config.收发消息的频道) {
-      if(config.使用被动方式转发 && sessionFlag) {
+      if(config.使用被动方式转发 && sessionFlag && !triggerSuccess) {
+        triggerSuccess = true;
         logger.debug(`将被动发送消息队列: ${messageQueue}`);
-        const messageQueue_ = messageQueue.length
-        for (let i = 0; i < messageQueue_; i++) {
-          await session.send(messageQueue[i]);
+        while (messageQueue.length > 0) {
+          // 超时不需要中断
+          await session.send(messageQueue[0]);
+          messageQueue.shift();
         }
+        triggerSuccess = false;
         logger.debug('被动方式转发成功');
-        sessionFlag = false;
-        messageQueue = [];
       }
       const messageData = await processMessage(session.event);
       const messagePacket = createMessagePacket(session, messageData);
@@ -202,9 +209,13 @@ export function apply(ctx: Context, config: ConfigType) {
   }
 
   function closeServer() {
-    const client = server.clients.values().next().value;
-    client.terminate()
-    server.close();
+    if (server.clients.size > 0) {
+      const client = server.clients.values().next().value;
+      client.terminate()
+    }
+    if (server) {
+      server.close(); 
+    }
   }
 
   function createMessagePacket(session, messageData) {
@@ -231,15 +242,15 @@ export function apply(ctx: Context, config: ConfigType) {
             sessionFlag = true;
             ctx.setTimeout(async () => {
               logger.debug('计时结束');
-              if (sessionFlag) {
+              const messageQueue_ = messageQueue.length
+              if (messageQueue_ > 0) {
                 logger.debug(`将主动发送消息队列: ${messageQueue}`);
-                const messageQueue_ = messageQueue.length
                 for (let i = 0; i < messageQueue_; i++) {
                   await bot.broadcast([config.收发消息的频道], messageQueue[i]);
                 }
-                sessionFlag = false;
-                messageQueue = [];
-              }
+              } 
+              sessionFlag = false;
+              messageQueue = [];
             }, config.等待触发时长);
             logger.debug('开始计时');
           }
@@ -276,8 +287,10 @@ export function apply(ctx: Context, config: ConfigType) {
           if (!max) {
             max = true;
             const messageQueue_ = messageQueue.length
-            for (let i = 0; i < messageQueue_; i++) {
-              await bot.broadcast([config.收发消息的频道], messageQueue[i]);
+            if (messageQueue_ > 0) {
+              for (let i = 0; i < messageQueue_; i++) {
+                await bot.broadcast([config.收发消息的频道], messageQueue[i]);
+              }
             }
             sessionFlag = false;
             messageQueue = [];
