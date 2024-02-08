@@ -1,5 +1,6 @@
 import { Context, Schema } from 'koishi';
 export declare const name = "connect-chatbridge";
+export declare const usage = "\n\u77ED\u7F51\u5740\u670D\u52A1\u91C7\u7528: https://www.urlc.cn/\n\n\u4FEE\u6539\u540E\u7684Chatbridge\u89C1: https://github.com/Kxy051/ChatBridge\n";
 interface ConfigType {
     enable: boolean;
     port: number;

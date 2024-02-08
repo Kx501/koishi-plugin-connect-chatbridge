@@ -4,6 +4,12 @@ import axios from 'axios';
 
 export const name = 'connect-chatbridge';
 
+export const usage = `
+短网址服务采用: https://www.urlc.cn/
+
+修改后的Chatbridge见: https://github.com/Kxy051/ChatBridge
+`
+
 interface ConfigType {
   enable: boolean;
   port: number;
@@ -59,7 +65,6 @@ export function apply(ctx: Context, config: ConfigType) {
   let max_ = false;
 
   ctx.on('dispose', () => {
-    // 存储
     closeServer();
     logger.info('WebSocket 服务器已关闭。');
   });
@@ -70,14 +75,13 @@ export function apply(ctx: Context, config: ConfigType) {
       logger.info('已关闭未正确关闭的 WebSocket 服务器。');
     }
     if (config.enable) {
-      // 测试
-      if (bot.broadcast === undefined) {
+      logger.debug('调试模式开启！');
+      if (bot === undefined) {
         bot = ctx.bots[`qqguild:${config.机器人账号}`];
         logger.debug('初始化 bot！')
       }
-      logger.debug('调试模式开启！');
       startServer();
-      logger.info('WebSocket 服务器已启动。');
+      logger.success('WebSocket 服务器已启动。');
     }
   });
 
@@ -189,7 +193,7 @@ export function apply(ctx: Context, config: ConfigType) {
             const sendMessage_ = JSON.parse(receivedData).message;
             processWebSocketMessage(sendMessage_);
           } else if (receivedData instanceof ArrayBuffer) {
-            logger.debug('接收到二进制数据');
+            logger.warn('接收到二进制数据，暂无处理逻辑！');
             // 如果需要处理二进制数据，请在此添加相应逻辑
             return;
           }
@@ -197,23 +201,23 @@ export function apply(ctx: Context, config: ConfigType) {
 
         socket.addEventListener('close', (event) => {
           if (event.code !== 1006) {
-            logger.info(`连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
+            logger.warn(`连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
           }
         });
       } else {
         socket.close();
-        logger.info('无效的 Token，连接已终止。');
+        logger.warn('无效的 Token，连接已终止。');
         return;
       }
     });
   }
 
   function closeServer() {
-    if (server.clients.size > 0) {
-      const client = server.clients.values().next().value;
-      client.terminate()
-    }
     if (server) {
+      if (server.clients.size > 0) {
+        const client = server.clients.values().next().value;
+        client.terminate()
+      }
       server.close(); 
     }
   }
@@ -279,10 +283,16 @@ export function apply(ctx: Context, config: ConfigType) {
         }
       }
     } catch (error) {
-      logger.error('发生错误，请尝试重启插件: ', error);
+      // 测试
+      if (bot === undefined) {
+        bot = ctx.bots[`qqguild:${config.机器人账号}`];
+        logger.debug('重新初始化 bot！')
+      }
       // 主动推送上限，没遇到过，暂时不管
-      if (error.message.includes('上限')) {
+      else if (error.message.includes('上限')) {
+        logger.warn('频道推送上限！');
         if (config.使用备用频道) {
+          logger.info('尝试使用备用频道。');
           config.收发消息的频道 = config.备用转发频道;
           if (!max) {
             max = true;
@@ -301,6 +311,8 @@ export function apply(ctx: Context, config: ConfigType) {
           max = true;
           max_ = true;
         }
+      } else {
+      logger.error('发生错误，请尝试重启插件: ', error);
       }
     }
   }
