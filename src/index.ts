@@ -1,6 +1,7 @@
 import { Command, Context, Schema, Session, Logger } from 'koishi';
 import * as WebSocket from 'ws';
 import axios from 'axios';
+import { error } from 'console';
 
 export const name = 'connect-chatbridge';
 
@@ -55,14 +56,16 @@ export const Config: Schema<ConfigType> = Schema.intersect([
 ])
 
 export function apply(ctx: Context, config: ConfigType) {
-  let server: WebSocket.Server | null = null;
-  const logger = new Logger('connect-chatbridge');
-  let bot = ctx.bots[`qqguild:${config.机器人账号}`];
-  let sessionFlag = false;
-  let triggerSuccess = false;
-  let messageQueue  = [];
-  let max = false;
-  let max_ = false;
+  let server = null,
+    bot = null,
+    messageQueue = [],
+    sessionFlag = false,
+    triggerSuccess = false,
+    max = false,
+    max_ = false,
+    hasExecuted = false,
+    errorCount = 0;
+  const logger = new Logger('connect-chatbridge')
 
   ctx.on('dispose', () => {
     closeServer();
@@ -76,10 +79,7 @@ export function apply(ctx: Context, config: ConfigType) {
     }
     if (config.enable) {
       logger.debug('调试模式开启！');
-      if (bot === undefined) {
-        bot = ctx.bots[`qqguild:${config.机器人账号}`];
-        logger.debug('初始化 bot！')
-      }
+      bot = ctx.bots[`qqguild:${config.机器人账号}`];
       startServer();
       logger.success('WebSocket 服务器已启动。');
     }
@@ -87,7 +87,7 @@ export function apply(ctx: Context, config: ConfigType) {
 
   ctx.middleware(async (session, next) => {
     if (server && server.clients.size > 0 && session.event._data.d.channel_id === config.收发消息的频道) {
-      if(config.使用被动方式转发 && sessionFlag && !triggerSuccess) {
+      if (config.使用被动方式转发 && sessionFlag && !triggerSuccess) {
         triggerSuccess = true;
         logger.debug(`将被动发送消息队列: ${messageQueue}`);
         while (messageQueue.length > 0) {
@@ -99,7 +99,7 @@ export function apply(ctx: Context, config: ConfigType) {
         logger.debug('被动方式转发成功');
       }
       const messageData = await processMessage(session.event);
-      const messagePacket = createMessagePacket(session, messageData);
+      const messagePacket = createMessagePacket(session.event.user.name, messageData);
 
       if (!config.指令转发QQ消息 || session.elements[0].attrs.content.split(' ')[0] === config.频道内触发指令) {
         sendMessageToClients(messagePacket);
@@ -109,7 +109,7 @@ export function apply(ctx: Context, config: ConfigType) {
     }
   });
 
-  async function processMessage(sessionEvent) {
+  async function processMessage(sessionEvent: any) {
     let attrsTemp = '';
 
     for (let i = 0; i < sessionEvent.message.elements.length; i++) {
@@ -123,7 +123,7 @@ export function apply(ctx: Context, config: ConfigType) {
     return attrsTemp;
   }
 
-  async function processElement(element) {
+  async function processElement(element: any) {
     let innerAttrsTemp = '';
 
     if (element.type.includes('emoji')) {
@@ -153,7 +153,7 @@ export function apply(ctx: Context, config: ConfigType) {
     return innerAttrsTemp;
   }
 
-  async function generateShortUrl(originalUrl) {
+  async function generateShortUrl(originalUrl: string) {
     try {
       const formattedTomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('zh-CN', {
         year: 'numeric',
@@ -178,7 +178,7 @@ export function apply(ctx: Context, config: ConfigType) {
 
   function startServer() {
     server = new WebSocket.Server({ port: config.port });
-    server.on('connection', (socket, req) => {
+    server.on('connection', (socket: any, req: any) => {
       const wsUrl = new URL(req.url, `http://${req.headers.host}`);
       const accessToken = wsUrl.searchParams.get('access_token');
 
@@ -186,8 +186,8 @@ export function apply(ctx: Context, config: ConfigType) {
         logger.info('Token 验证通过，连接成功。');
 
         socket.addEventListener('message', (event: WebSocket.MessageEvent) => {
-        const receivedData = event.data;
-          
+          const receivedData = event.data;
+
           if (typeof receivedData === 'string') {
             logger.debug(`接收到MC消息: ${receivedData}`);
             const sendMessage_ = JSON.parse(receivedData).message;
@@ -199,7 +199,7 @@ export function apply(ctx: Context, config: ConfigType) {
           }
         });
 
-        socket.addEventListener('close', (event) => {
+        socket.addEventListener('close', (event: any) => {
           if (event.code !== 1006) {
             logger.warn(`连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
           }
@@ -218,51 +218,53 @@ export function apply(ctx: Context, config: ConfigType) {
         const client = server.clients.values().next().value;
         client.terminate()
       }
-      server.close(); 
+      server.close();
     }
   }
 
-  function createMessagePacket(session, messageData) {
+  function createMessagePacket(sessionUser: string, messageData: string) {
     return JSON.stringify({
-        sender: session.event.user.name,
-        message: `${messageData}`
+      sender: sessionUser,
+      message: `${messageData}`
     });
   }
 
-  function sendMessageToClients(messagePacket) {
+  function sendMessageToClients(messagePacket: string) {
     const client = server.clients.values().next().value;
     logger.debug(`将转发QQ消息: ${messagePacket}`)
     client.send(messagePacket);
     logger.debug('QQ消息转发成功！');
   }
 
-  async function processWebSocketMessage(sendMessage_) {
+  async function processWebSocketMessage(sendMessage_: string) {
     try {
-      if (max && max_) return;
-      const broadcastMessage = async (message_) => {
+      if (max && max_) {
+        if (!hasExecuted) {
+          const endPacket = JSON.stringify({
+            sender: 'Koshi',
+            message: '今日消息推送上限，不再向QQ转发消息！'
+          })
+          sendMessageToClients(endPacket);
+          hasExecuted = true;
+        }
+        return;
+      }
+      const broadcastMessage = async (message_: string) => {
         if (config.使用被动方式转发) {
           messageQueue.push(message_);
           if (!sessionFlag) {
             sessionFlag = true;
             ctx.setTimeout(async () => {
               logger.debug('计时结束');
-              const messageQueue_ = messageQueue.length
-              if (messageQueue_ > 0) {
-                logger.debug(`将主动发送消息队列: ${messageQueue}`);
-                for (let i = 0; i < messageQueue_; i++) {
-                  await bot.broadcast([config.收发消息的频道], messageQueue[i]);
-                }
-              } 
-              sessionFlag = false;
-              messageQueue = [];
+              trySend();
             }, config.等待触发时长);
             logger.debug('开始计时');
           }
         } else {
           await bot.broadcast([config.收发消息的频道], `${message_}`);
         }
-      };
-  
+      }
+
       if (!/\[.*?\] <.*?>/.test(sendMessage_)) {
         await broadcastMessage(sendMessage_);
       } else {
@@ -278,41 +280,63 @@ export function apply(ctx: Context, config: ConfigType) {
             }
           }).filter(Boolean).join(' ');
           if (!config.指令转发MC消息 || (config.指令转发MC消息 && messageParts[2] === config.游戏内触发指令)) {
-          await broadcastMessage(modifiedMessage)
+            await broadcastMessage(modifiedMessage)
           }
         }
       }
-    } catch (error) {
-      if (bot === undefined) {
-        bot = ctx.bots[`qqguild:${config.机器人账号}`];
-        logger.debug('重新初始化 bot！')
+    }
+    catch (error) {
+      await handleError(error)
+    }
+  }
+
+  async function handleError(error: any) {
+    // 主动推送上限，没遇到过，后续添加
+    if (error.message.includes("(reading 'broadcast')")) {
+      if (errorCount > 6) {
+        logger.error('无法初始化 bot，请检查适配器和插件设置后再重启插件！');
+        max = true;
+        max_ = true;
       }
-      // 主动推送上限，没遇到过，后续添加
-      else if (error.message.includes('上限')) {
-        logger.warn('频道推送上限！');
-        if (config.使用备用频道) {
-          logger.info('尝试使用备用频道。');
-          config.收发消息的频道 = config.备用转发频道;
-          if (!max) {
-            max = true;
-            const messageQueue_ = messageQueue.length
-            if (messageQueue_ > 0) {
-              for (let i = 0; i < messageQueue_; i++) {
-                await bot.broadcast([config.收发消息的频道], messageQueue[i]);
-              }
-            }
-            sessionFlag = false;
-            messageQueue = [];
-          } else {
-            max_ = true;
-          }
-        } else {
+      bot = ctx.bots[`qqguild:${config.机器人账号}`];
+      logger.debug('重新初始化 bot！');
+      trySend();
+      errorCount++;
+    }
+    else if (error.message.includes('限制')) {
+      logger.warn('频道推送上限！');
+      if (config.使用备用频道) {
+        logger.info('尝试使用备用频道。');
+        config.收发消息的频道 = config.备用转发频道;
+        if (!max) {
           max = true;
+          trySend();
+        } else {
           max_ = true;
         }
       } else {
-      logger.error('发生错误，请尝试重启插件: ', error);
+        max = true;
+        max_ = true;
       }
+    }
+    else {
+      logger.error('发生错误，请尝试重启插件: ', error);
+    }
+  }
+
+  async function trySend() {
+    try {
+      const messageQueue_ = messageQueue.length;
+      if (messageQueue_ > 0) {
+        for (let i = 0; i < messageQueue_; i++) {
+          await bot.broadcast([config.收发消息的频道], messageQueue[i]);
+        }
+      }
+      sessionFlag = false;
+      messageQueue = [];
+    }
+    catch (error) {
+      handleError(error);
     }
   }
 }
