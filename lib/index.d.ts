@@ -17,6 +17,9 @@ interface ConfigType {
     等待触发时长: number;
     使用备用频道: boolean;
     备用转发频道: string;
+    启用定时任务: boolean;
+    定时关闭转发频道消息: any;
+    定时启动转发频道消息: any;
 }
 export declare const Config: Schema<ConfigType>;
 export declare function apply(ctx: Context, config: ConfigType): void;

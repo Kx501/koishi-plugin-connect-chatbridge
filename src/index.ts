@@ -1,7 +1,6 @@
 import { Command, Context, Schema, Session, Logger } from 'koishi';
 import * as WebSocket from 'ws';
 import axios from 'axios';
-import { error } from 'console';
 
 export const name = 'connect-chatbridge';
 
@@ -27,31 +26,37 @@ interface ConfigType {
   等待触发时长: number;
   使用备用频道: boolean;
   备用转发频道: string;
+  启用定时任务: boolean;
+  定时关闭转发频道消息: any;
+  定时启动转发频道消息: any;
 }
 
 export const Config: Schema<ConfigType> = Schema.intersect([
   Schema.object({
-    enable: Schema.boolean().default(false).description('是否开启 WebSocket 转发'),
-    port: Schema.number().default(5555).description('WebSocket 端口'),
-    token: Schema.string().role('secret').description('建立 WebSocket 连接的 token')
+    enable: Schema.boolean().default(false).description('是否开启 WebSocket 转发。'),
+    port: Schema.number().default(5555).description('WebSocket 端口。'),
+    token: Schema.string().role('secret').description('建立 WebSocket 连接的 token。')
   }).description('WebSocket 相关设置'),
   Schema.object({
-    收发消息的频道: Schema.string().description('转发消息的子频道号').required(),
-    机器人账号: Schema.string().description('机器人频道 id').required(),
-    指令转发QQ消息: Schema.boolean().default(false).description('直接转发 QQ 消息到 Minecraft'),
+    收发消息的频道: Schema.string().description('转发消息的子频道号。').required(),
+    机器人账号: Schema.string().description('机器人频道 id。').required(),
+    指令转发QQ消息: Schema.boolean().default(false).description('直接转发 QQ 消息到 Minecraft。'),
     频道内触发指令: Schema.string().default('mc').description('QQ 内发送消息到 Minecraft 的指令，如果有前缀请加上。'),
-    指令转发MC消息: Schema.boolean().default(false).description('直接转发 Minecraft 消息到 QQ'),
-    游戏内触发指令: Schema.string().default('qq').description('Minecraft 内发送消息到 QQ 的指令，如果有前缀请加上。'),
+    指令转发MC消息: Schema.boolean().default(false).description('直接转发 Minecraft 消息到 QQ。'),
+    游戏内触发指令: Schema.string().default('qq').description('Minecraft 内发送消息到 QQ 的指令，如果有前缀请加上。')
   }).description('消息相关设置'),
   Schema.object({
-    urlAppId: Schema.string().role('secret').description('短链接服务的 id').deprecated(),
-    urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required(),
+    urlAppId: Schema.string().role('secret').description('短链接服务的 id。').deprecated(),
+    urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required()
   }).description('短链接服务相关设置'),
   Schema.object({
-    使用被动方式转发: Schema.boolean().default(false).description('当频道内有人发言时才发送消息，配合触发时长使用。').experimental(),
-    等待触发时长: Schema.number().default(2000).description('(毫秒) 超时采用主动发送，启用后转发消息到 QQ 会有延迟。效果自行测试。').experimental(),
+    使用被动方式转发: Schema.boolean().default(false).description('当频道内有人发言时转发消息，配合触发时长使用。').experimental(),
+    等待触发时长: Schema.number().default(2000).description('(毫秒) 时间段内可触发被动发送，超时采用主动发送。<br>启用后转发消息到 QQ 会有延迟，效果自行测试。').experimental(),
     使用备用频道: Schema.boolean().default(false).description('如果采用主动消息转发，在单个频道推送上限后向备用频道推送。').experimental(),
-    备用转发频道: Schema.string().description('备用的频道号').experimental(),
+    备用转发频道: Schema.string().description('备用频道号').experimental(),
+    启用定时任务: Schema.boolean().default(false).description('凌晨有一段时间无法推送。').experimental(),
+    定时关闭转发频道消息: Schema.tuple([Number, Number]).default([0, 0]).description('(24小时制) 设置时，分。').experimental(),
+    定时启动转发频道消息: Schema.tuple([Number, Number]).default([6, 0]).description('(24小时制) 设置时，分。').experimental()
   }).description('其他设置')
 ])
 
@@ -64,7 +69,8 @@ export function apply(ctx: Context, config: ConfigType) {
     max = false,
     max_ = false,
     hasExecuted = false,
-    errorCount = 0;
+    errorCount = 0,
+    isClosingScheduled = false;
   const logger = new Logger('connect-chatbridge')
 
   ctx.on('dispose', () => {
@@ -79,6 +85,9 @@ export function apply(ctx: Context, config: ConfigType) {
     }
     if (config.enable) {
       logger.debug('调试模式开启！');
+      if (config.启用定时任务) {
+        scheduleTasks();
+      }
       bot = ctx.bots[`qqguild:${config.机器人账号}`];
       startServer();
       logger.success('WebSocket 服务器已启动。');
@@ -222,6 +231,63 @@ export function apply(ctx: Context, config: ConfigType) {
     }
   }
 
+  async function scheduleTasks() {
+    const now = new Date();
+    const startTime = new Date(now);
+    startTime.setHours(config.定时启动转发频道消息[0], config.定时启动转发频道消息[1], 0, 0);
+    const stopTime = new Date(now);
+    stopTime.setHours(config.定时关闭转发频道消息[0], config.定时关闭转发频道消息[1], 0, 0);
+
+    // 如果定时关闭的时间在当前时间之前，则将其增加到明天的相同时间点
+    if (stopTime <= now) {
+      stopTime.setDate(stopTime.getDate() + 1);
+    }
+
+    // 如果定时启动的时间在当前时间之前，则将其增加到明天的相同时间点
+    if (startTime <= now) {
+      startTime.setDate(startTime.getDate() + 1);
+    }
+
+    if (now >= stopTime && now <= startTime) {
+      logger.debug("不在推送时间段内！")
+      const nextStartTime = new Date(now);
+      nextStartTime.setHours(config.定时启动转发频道消息[0], config.定时启动转发频道消息[1], 0, 0);
+      nextStartTime.setDate(nextStartTime.getDate() + 1);
+      const timeUntilNextStart = nextStartTime.getTime() - now.getTime();
+      setTimeout(() => {
+        max = false;
+        max_ = false;
+        logger.debug("定时启动转发！");
+        scheduleTasks();
+      }, timeUntilNextStart);
+    } else {
+      // 计算距离
+      const timeUntilNextStart = startTime.getTime() - now.getTime();
+      const timeUntilNextStop = stopTime.getTime() - now.getTime();
+
+      // 选择距离更短的执行
+      if (timeUntilNextStart < timeUntilNextStop) {
+        setTimeout(() => {
+          max = false;
+          max_ = false;
+          logger.debug("定时启动转发！");
+          scheduleTasks();
+        }, timeUntilNextStart);
+      } else {
+        // 确保只调度一次关闭任务
+        if (!isClosingScheduled) {
+          isClosingScheduled = true;
+          setTimeout(() => {
+            max = true;
+            max_ = true;
+            logger.debug("定时关闭转发！");
+            scheduleTasks();
+          }, timeUntilNextStop);
+        }
+      }
+    }
+  }
+
   function createMessagePacket(sessionUser: string, messageData: string) {
     return JSON.stringify({
       sender: sessionUser,
@@ -242,7 +308,7 @@ export function apply(ctx: Context, config: ConfigType) {
         if (!hasExecuted) {
           const endPacket = JSON.stringify({
             sender: 'Koshi',
-            message: '今日消息推送上限，不再向QQ转发消息！'
+            message: '今日消息推送受限，不再向频道转发消息！'
           })
           sendMessageToClients(endPacket);
           hasExecuted = true;
