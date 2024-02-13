@@ -1,7 +1,6 @@
 import { Command, Context, Schema, Session, Logger } from 'koishi';
 import * as WebSocket from 'ws';
 import axios from 'axios';
-import { channel } from 'diagnostics_channel';
 
 export const name = 'connect-chatbridge';
 
@@ -393,7 +392,7 @@ export function apply(ctx: Context, config: ConfigType) {
       logger.error('发生错误，请尝试重启插件: ', error);
     }
 
-    function resetMax(){
+    function resetMax() {
       const now = new Date();
       const tomorrowMidnight = new Date(now);
       tomorrowMidnight.setHours(24, 0, 0, 0);
@@ -401,7 +400,7 @@ export function apply(ctx: Context, config: ConfigType) {
       setTimeout(() => {
         max = false;
         max_ = false;
-        if(config.使用备用频道){
+        if (config.使用备用频道) {
           config.收发消息的频道 = tempChannel;
         }
       }, timeUntilTomorrowMidnight);
