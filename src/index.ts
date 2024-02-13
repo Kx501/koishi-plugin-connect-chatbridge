@@ -1,6 +1,7 @@
 import { Command, Context, Schema, Session, Logger } from 'koishi';
 import * as WebSocket from 'ws';
 import axios from 'axios';
+import { channel } from 'diagnostics_channel';
 
 export const name = 'connect-chatbridge';
 
@@ -71,7 +72,8 @@ export function apply(ctx: Context, config: ConfigType) {
     hasExecuted = false,
     errorCount = 0,
     isClosingScheduled = false;
-  const logger = new Logger('connect-chatbridge')
+  const logger = new Logger('connect-chatbridge');
+  const tempChannel = config.收发消息的频道;
 
   ctx.on('dispose', () => {
     closeServer();
@@ -374,6 +376,7 @@ export function apply(ctx: Context, config: ConfigType) {
       if (config.使用备用频道) {
         logger.info('尝试使用备用频道。');
         config.收发消息的频道 = config.备用转发频道;
+        resetMax();
         if (!max) {
           max = true;
           trySend();
@@ -383,10 +386,25 @@ export function apply(ctx: Context, config: ConfigType) {
       } else {
         max = true;
         max_ = true;
+        resetMax();
       }
     }
     else {
       logger.error('发生错误，请尝试重启插件: ', error);
+    }
+
+    function resetMax(){
+      const now = new Date();
+      const tomorrowMidnight = new Date(now);
+      tomorrowMidnight.setHours(24, 0, 0, 0);
+      const timeUntilTomorrowMidnight = tomorrowMidnight.getTime() - now.getTime();
+      setTimeout(() => {
+        max = false;
+        max_ = false;
+        if(config.使用备用频道){
+          config.收发消息的频道 = tempChannel;
+        }
+      }, timeUntilTomorrowMidnight);
     }
   }
 
