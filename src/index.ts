@@ -69,8 +69,7 @@ export function apply(ctx: Context, config: ConfigType) {
     max = false,
     max_ = false,
     hasExecuted = false,
-    errorCount = 0,
-    isClosingScheduled = false;
+    errorCount = 0;
   const logger = new Logger('connect-chatbridge');
   const tempChannel = config.收发消息的频道;
 
@@ -234,58 +233,33 @@ export function apply(ctx: Context, config: ConfigType) {
 
   async function scheduleTasks() {
     const now = new Date();
+    logger.debug(`当前时间：${now}`);
     const startTime = new Date(now);
     startTime.setHours(config.定时启动转发频道消息[0], config.定时启动转发频道消息[1], 0, 0);
+    logger.debug(`自动启动时间：${startTime}`);
     const stopTime = new Date(now);
     stopTime.setHours(config.定时关闭转发频道消息[0], config.定时关闭转发频道消息[1], 0, 0);
-
-    // 如果定时关闭的时间在当前时间之前，则将其增加到明天的相同时间点
-    if (stopTime <= now) {
-      stopTime.setDate(stopTime.getDate() + 1);
-    }
-
-    // 如果定时启动的时间在当前时间之前，则将其增加到明天的相同时间点
-    if (startTime <= now) {
-      startTime.setDate(startTime.getDate() + 1);
-    }
+    logger.debug(`自动关闭时间：${stopTime}`);
 
     if (now >= stopTime && now <= startTime) {
-      logger.debug("不在推送时间段内！")
-      const nextStartTime = new Date(now);
-      nextStartTime.setHours(config.定时启动转发频道消息[0], config.定时启动转发频道消息[1], 0, 0);
-      nextStartTime.setDate(nextStartTime.getDate() + 1);
-      const timeUntilNextStart = nextStartTime.getTime() - now.getTime();
+      const timeUntilNextStart = startTime.getTime() - now.getTime();
+      logger.debug(`距下一次启动还剩：${timeUntilNextStart} ms。`);
       setTimeout(() => {
         max = false;
         max_ = false;
-        logger.debug("定时启动转发！");
+        logger.info("定时启动转发！");
+        errorCount = 0;
         scheduleTasks();
       }, timeUntilNextStart);
     } else {
-      // 计算距离
-      const timeUntilNextStart = startTime.getTime() - now.getTime();
-      const timeUntilNextStop = stopTime.getTime() - now.getTime();
-
-      // 选择距离更短的执行
-      if (timeUntilNextStart < timeUntilNextStop) {
-        setTimeout(() => {
-          max = false;
-          max_ = false;
-          logger.debug("定时启动转发！");
-          scheduleTasks();
-        }, timeUntilNextStart);
-      } else {
-        // 确保只调度一次关闭任务
-        if (!isClosingScheduled) {
-          isClosingScheduled = true;
-          setTimeout(() => {
-            max = true;
-            max_ = true;
-            logger.debug("定时关闭转发！");
-            scheduleTasks();
-          }, timeUntilNextStop);
-        }
-      }
+      const timeUntilNextStop = stopTime.setDate(stopTime.getDate() + 1) - now.getTime();
+      logger.debug(`距下一次关闭还剩：${timeUntilNextStop} ms。`);
+      setTimeout(() => {
+        max = true;
+        max_ = true;
+        logger.info("定时关闭转发！");
+        scheduleTasks();
+      }, timeUntilNextStop);
     }
   }
 
@@ -360,7 +334,7 @@ export function apply(ctx: Context, config: ConfigType) {
   async function handleError(error: any) {
     // 主动推送上限，没遇到过，后续添加
     if (error.message.includes("(reading 'broadcast')")) {
-      if (errorCount > 6) {
+      if (errorCount === 4) {
         logger.error('无法初始化 bot，请检查适配器和插件设置后再重启插件！');
         max = true;
         max_ = true;
