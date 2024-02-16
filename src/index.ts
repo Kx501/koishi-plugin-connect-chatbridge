@@ -209,12 +209,11 @@ export function apply(ctx: Context, config: ConfigType) {
         });
 
         socket.addEventListener('close', (event: any) => {
-          if (event.code !== 1006) {
-            if (event.code === 1000) {
-              logger.info('客户端关闭连接。');
-            } else {
-              logger.warn(`连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
-            }
+          if (event.code === 1000) {
+            logger.info('客户端关闭连接。');
+          }
+          else if (event.code !== 1006) {
+            logger.warn(`连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
           }
         });
       } else {
