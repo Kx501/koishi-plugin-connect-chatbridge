@@ -39,11 +39,11 @@ export const Config: Schema<ConfigType> = Schema.intersect([
   }).description('WebSocket 相关设置'),
   Schema.object({
     收发消息的频道: Schema.string().description('转发消息的子频道号。').required(),
-    机器人账号: Schema.string().description('机器人频道 id。').required(),
-    指令转发QQ消息: Schema.boolean().default(false).description('直接转发 QQ 消息到 Minecraft。'),
-    频道内触发指令: Schema.string().default('mc').description('QQ 内发送消息到 Minecraft 的指令，如果有前缀请加上。'),
-    指令转发MC消息: Schema.boolean().default(false).description('直接转发 Minecraft 消息到 QQ。'),
-    游戏内触发指令: Schema.string().default('qq').description('Minecraft 内发送消息到 QQ 的指令，如果有前缀请加上。')
+    机器人账号: Schema.string().description('机器人子频道 id。').required(),
+    指令转发QQ消息: Schema.boolean().default(false).description('指令触发。'),
+    频道内触发指令: Schema.string().default('mc').description('QQ 内发送消息到 Minecraft 的指令，如有前缀请加上。'),
+    指令转发MC消息: Schema.boolean().default(false).description('指令触发。'),
+    游戏内触发指令: Schema.string().default('qq').description('Minecraft 内发送消息到 QQ 的指令，如有前缀请加上。')
   }).description('消息相关设置'),
   Schema.object({
     urlAppId: Schema.string().role('secret').description('短链接服务的 id。').deprecated(),
