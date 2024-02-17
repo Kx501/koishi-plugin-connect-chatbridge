@@ -199,8 +199,8 @@ export function apply(ctx: Context, config: ConfigType) {
 
           if (typeof receivedData === 'string') {
             logger.debug(`接收到MC消息: ${receivedData}`);
-            const sendMessage_ = JSON.parse(receivedData).message;
-            processWebSocketMessage(sendMessage_);
+            const sendMessage = JSON.parse(receivedData).message;
+            processWebSocketMessage(sendMessage);
           } else if (receivedData instanceof ArrayBuffer) {
             logger.warn('接收到二进制数据，暂无处理逻辑！');
             // 如果需要处理二进制数据，请在此添加相应逻辑
@@ -280,7 +280,7 @@ export function apply(ctx: Context, config: ConfigType) {
     logger.debug('QQ消息转发成功！');
   }
 
-  async function processWebSocketMessage(sendMessage_: string) {
+  async function processWebSocketMessage(sendMessage: string) {
     try {
       if (max && max_) {
         if (!hasExecuted) {
@@ -293,7 +293,7 @@ export function apply(ctx: Context, config: ConfigType) {
         }
         return;
       }
-      const broadcastMessage = async (message_: string) => {
+      async function broadcastMessage (message_: string) {
         if (config.使用被动方式转发) {
           messageQueue.push(message_);
           if (!sessionFlag) {
@@ -309,10 +309,10 @@ export function apply(ctx: Context, config: ConfigType) {
         }
       }
 
-      if (!/\[.*?\] <.*?>/.test(sendMessage_)) {
-        await broadcastMessage(sendMessage_);
+      if (!/\[.*?\] <.*?>/.test(sendMessage)) {
+        await broadcastMessage(sendMessage);
       } else {
-        const messageParts = sendMessage_.split(' ');
+        const messageParts = sendMessage.split(' ');
         if (messageParts.length > 2) {
           const modifiedMessage = messageParts.map((part, i) => {
             if (i === 1) {
@@ -330,17 +330,20 @@ export function apply(ctx: Context, config: ConfigType) {
       }
     }
     catch (error) {
-      await handleError(error)
+      await handleError(error, sendMessage)
     }
   }
 
-  async function handleError(error: any) {
+  async function handleError(error: any, sendMessage?: string) {
     // 主动推送上限，没遇到过，后续添加
     if (error.message.includes("(reading 'broadcast')")) {
       if (errorCount === 4) {
         logger.error('无法初始化 bot，请检查适配器和插件设置后再重启插件！');
         max = true;
         max_ = true;
+      }
+      if (!config.使用被动方式转发) {
+        messageQueue.push(sendMessage)
       }
       bot = ctx.bots[`qqguild:${config.机器人账号}`];
       logger.debug('重新初始化 bot！');
@@ -350,6 +353,9 @@ export function apply(ctx: Context, config: ConfigType) {
     else if (error.message.includes('限制')) {
       logger.warn('频道推送上限！');
       if (config.使用备用频道) {
+        if (!config.使用被动方式转发) {
+          messageQueue.push(sendMessage)
+        }
         logger.info('尝试使用备用频道。');
         config.收发消息的频道 = config.备用转发频道;
         resetMax();
@@ -384,6 +390,7 @@ export function apply(ctx: Context, config: ConfigType) {
     }
   }
 
+  //使用前确保队列中有消息
   async function trySend() {
     try {
       const messageQueue_ = messageQueue.length;
