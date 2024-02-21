@@ -40,9 +40,9 @@ export const Config: Schema<ConfigType> = Schema.intersect([
   Schema.object({
     收发消息的频道: Schema.string().description('转发消息的子频道号。').required(),
     机器人账号: Schema.string().description('机器人子频道 id。').required(),
-    指令转发QQ消息: Schema.boolean().default(false).description('指令触发。'),
+    指令转发QQ消息: Schema.boolean().default(false).description('是否指令触发。'),
     频道内触发指令: Schema.string().default('mc').description('QQ 内发送消息到 Minecraft 的指令，如有前缀请加上。'),
-    指令转发MC消息: Schema.boolean().default(false).description('指令触发。'),
+    指令转发MC消息: Schema.boolean().default(false).description('是否指令触发。'),
     游戏内触发指令: Schema.string().default('qq').description('Minecraft 内发送消息到 QQ 的指令，如有前缀请加上。')
   }).description('消息相关设置'),
   Schema.object({
@@ -75,13 +75,13 @@ export function apply(ctx: Context, config: ConfigType) {
 
   ctx.on('dispose', () => {
     closeServer();
-    logger.info('WebSocket 服务器已关闭。');
+    logger.info('WebSocket 服务已关闭。');
   });
 
   ctx.on('ready', () => {
     if (server) {
       closeServer();
-      logger.info('已关闭未正确关闭的 WebSocket 服务器。');
+      logger.info('已关闭未正确关闭的 WebSocket 服务。');
     }
     if (config.enable) {
       logger.debug('调试模式开启！');
@@ -90,7 +90,7 @@ export function apply(ctx: Context, config: ConfigType) {
       }
       bot = ctx.bots[`qqguild:${config.机器人账号}`];
       startServer();
-      logger.success('WebSocket 服务器已启动。');
+      logger.success('WebSocket 服务已启动。');
     }
   });
 
