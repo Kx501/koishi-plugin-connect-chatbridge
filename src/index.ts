@@ -112,7 +112,7 @@ export function apply(ctx: Context, config: ConfigType) {
         }
       }
       startServer();
-      logger.success('启动 WebSocket 服务中...');
+      logger.info('启动 WebSocket 服务。');
     }
   })
 
