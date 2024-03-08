@@ -100,13 +100,13 @@ export function apply(ctx: Context, config: ConfigType) {
     if (config.enable) {
       try {
         await bot.getLogin();
-        logger.success('机器人在线。')
+        logger.success('机器人在线，开启 MC 转发。')
         if (config.启用定时任务) {
           scheduleTasks();
         }
       } catch (e) {
         if (e.message.includes("(reading 'getLogin')")) {
-          logger.info('机器人未登录。')
+          logger.info('机器人未登录,关闭 MC 转发。')
         } else {
           logger.error('机器人出错: ', e)
         }
