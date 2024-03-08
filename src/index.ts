@@ -106,7 +106,7 @@ export function apply(ctx: Context, config: ConfigType) {
         }
       } catch (e) {
         if (e.message.includes("(reading 'getLogin')")) {
-          logger.info('机器人未登录,关闭 MC 转发。')
+          logger.info('频道机器人未登录,关闭 MC 转发。')
         } else {
           logger.error('机器人出错: ', e)
         }
