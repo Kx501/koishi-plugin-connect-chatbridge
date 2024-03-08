@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-connect-chatbridge",
   "description": "(自用)在QQ频道和MC之间转发消息。",
-  "version": "1.0.9",
+  "version": "1.0.9-alpha.1",
   "contributors": [
     "Kxy051 <a2476675847@gmail.com>"
   ],
