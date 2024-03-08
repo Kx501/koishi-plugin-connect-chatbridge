@@ -1,10 +1,12 @@
-import { Command, Context, Schema, Session, Logger } from 'koishi';
+import { Context, Schema, Logger } from 'koishi';
 import * as WebSocket from 'ws';
 import axios from 'axios';
 
 export const name = 'connect-chatbridge';
 
 export const usage = `
+启用前请确保 ws 开放的端口未被占用，否则将导致实例崩溃！！！
+
 短网址服务采用: https://www.urlc.cn/
 
 修改后的Chatbridge见: https://github.com/Kxy051/ChatBridge
@@ -62,37 +64,66 @@ export const Config: Schema<ConfigType> = Schema.intersect([
 
 export function apply(ctx: Context, config: ConfigType) {
   let server = null,
-    bot = null,
+    bot = ctx.bots[`qqguild:${config.机器人账号}`],
     messageQueue = [],
     sessionFlag = false,
     triggerSuccess = false,
-    max = false,
-    max_ = false,
+    max = true,
+    max_ = true,
     hasExecuted = false,
-    errorCount = 0;
+    // errorCount = 0,
+    timerId = null;
   const logger = new Logger('connect-chatbridge');
   const tempChannel = config.收发消息的频道;
 
   ctx.on('dispose', () => {
-    closeServer();
-    logger.info('WebSocket 服务已关闭。');
-  });
+    if (server) {
+      closeServer();
+      logger.info('WebSocket 服务已关闭。');
+    }
+  })
 
-  ctx.on('ready', () => {
+  ctx.once('login-added', () => {
+    logger.debug('机器人已登录。');
+    max = false;
+    max_ = false;
+    if (config.启用定时任务) {
+      scheduleTasks();
+    }
+  })
+
+  ctx.on('ready', async () => {
+    logger.debug('调试模式开启！');
+
     if (server) {
       closeServer();
       logger.info('已关闭未正确关闭的 WebSocket 服务。');
     }
     if (config.enable) {
-      logger.debug('调试模式开启！');
-      if (config.启用定时任务) {
-        scheduleTasks();
+      try {
+        await bot.getLogin();
+        logger.success('机器人在线。')
+        if (config.启用定时任务) {
+          scheduleTasks();
+        }
+      } catch (e) {
+        if (e.message.includes("(reading 'getLogin')")) {
+          logger.info('机器人未登录。')
+        } else {
+          logger.error('机器人出错: ', e)
+        }
       }
-      bot = ctx.bots[`qqguild:${config.机器人账号}`];
       startServer();
-      logger.success('WebSocket 服务已启动。');
+      logger.success('启动 WebSocket 服务中...');
     }
-  });
+  })
+
+  ctx.once('login-removed', () => {
+    logger.info('机器人离线！');
+    max = true;
+    max_ = true;
+    clearTimeout(timerId);
+  })
 
   ctx.middleware(async (session, next) => {
     if (server && server.clients.size > 0 && session.event._data.d.channel_id === config.收发消息的频道) {
@@ -116,7 +147,7 @@ export function apply(ctx: Context, config: ConfigType) {
     } else {
       return next();
     }
-  });
+  })
 
   async function processMessage(sessionEvent: any) {
     let attrsTemp = '';
@@ -168,7 +199,7 @@ export function apply(ctx: Context, config: ConfigType) {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
-      });
+      })
 
       const requestData = { url: originalUrl, expiry: formattedTomorrow };
       const headers = { 'Authorization': 'Token ' + config.urlAppSecret, 'Content-Type': 'application/json' };
@@ -186,7 +217,9 @@ export function apply(ctx: Context, config: ConfigType) {
   }
 
   function startServer() {
+
     server = new WebSocket.Server({ port: config.port });
+
     server.on('connection', (socket: any, req: any) => {
       const wsUrl = new URL(req.url, `http://${req.headers.host}`);
       const accessToken = wsUrl.searchParams.get('access_token');
@@ -206,22 +239,29 @@ export function apply(ctx: Context, config: ConfigType) {
             // 如果需要处理二进制数据，请在此添加相应逻辑
             return;
           }
-        });
-
+        })
         socket.addEventListener('close', (event: any) => {
           if (event.code === 1000) {
             logger.info('客户端关闭连接。');
           }
           else if (event.code !== 1006) {
-            logger.warn(`连接关闭，关闭代码: ${event.code}，原因: ${event.reason}`);
+            logger.warn(`连接关闭，关闭代码: ${event.code}，原因: ${event.reason}。`);
           }
-        });
+        })
       } else {
         socket.close();
         logger.warn('无效的 Token，连接已终止。');
         return;
       }
-    });
+    })
+
+    server.on('error', (error: { code: string; }) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.error('启动 WebSocket 服务失败，端口被占用！');
+      } else {
+        logger.error('WebSocket 服务出错: ', error);
+      }
+    })
   }
 
   function closeServer() {
@@ -247,17 +287,17 @@ export function apply(ctx: Context, config: ConfigType) {
     if (now >= stopTime && now <= startTime) {
       const timeUntilNextStart = startTime.getTime() - now.getTime();
       logger.debug(`距下一次启动还剩：${timeUntilNextStart} ms。`);
-      setTimeout(() => {
+      timerId = setTimeout(() => {
         max = false;
         max_ = false;
         logger.info("定时启动转发！");
-        errorCount = 0;
+        // errorCount = 0;
         scheduleTasks();
       }, timeUntilNextStart);
     } else {
       const timeUntilNextStop = stopTime.setDate(stopTime.getDate() + 1) - now.getTime();
       logger.debug(`距下一次关闭还剩：${timeUntilNextStop} ms。`);
-      setTimeout(() => {
+      timerId = setTimeout(() => {
         max = true;
         max_ = true;
         logger.info("定时关闭转发！");
@@ -286,14 +326,14 @@ export function apply(ctx: Context, config: ConfigType) {
         if (!hasExecuted) {
           const endPacket = JSON.stringify({
             sender: 'Koshi',
-            message: '今日消息推送受限，不再向频道转发消息！'
+            message: '消息推送受限，不再向频道转发消息！'
           })
           sendMessageToClients(endPacket);
           hasExecuted = true;
         }
         return;
       }
-      async function broadcastMessage (message_: string) {
+      async function broadcastMessage(message_: string) {
         if (config.使用被动方式转发) {
           messageQueue.push(message_);
           if (!sessionFlag) {
@@ -335,21 +375,23 @@ export function apply(ctx: Context, config: ConfigType) {
   }
 
   async function handleError(error: any, sendMessage?: string) {
-    // 主动推送上限，没遇到过，后续添加
+    // 机器人离线
     if (error.message.includes("(reading 'broadcast')")) {
-      if (errorCount === 4) {
-        logger.error('无法初始化 bot，请检查适配器和插件设置后再重启插件！');
-        max = true;
-        max_ = true;
-      }
-      if (!config.使用被动方式转发) {
-        messageQueue.push(sendMessage)
-      }
-      bot = ctx.bots[`qqguild:${config.机器人账号}`];
-      logger.debug('重新初始化 bot！');
-      trySend();
-      errorCount++;
+      logger.error('无法初始化 bot，请检查适配器和插件设置后再重启插件！');
+      // if (errorCount === 4) {
+      //   logger.error('无法初始化 bot，请检查适配器和插件设置后再重启插件！');
+      //   max = true;
+      //   max_ = true;
+      // }
+      // if (!config.使用被动方式转发) {
+      //   messageQueue.push(sendMessage)
+      // }
+      // bot = ctx.bots[`qqguild:${config.机器人账号}`];
+      // logger.debug('重新初始化 bot！');
+      // trySend();
+      // errorCount++;
     }
+    // 主动推送上限，没遇到过，后续添加
     else if (error.message.includes('限制')) {
       logger.warn('频道推送上限！');
       if (config.使用备用频道) {
@@ -358,7 +400,10 @@ export function apply(ctx: Context, config: ConfigType) {
         }
         logger.info('尝试使用备用频道。');
         config.收发消息的频道 = config.备用转发频道;
-        resetMax();
+        // 第二天重置，没有开启定时任务时使用
+        if (!config.启用定时任务) {
+          resetMax();
+        }
         if (!max) {
           max = true;
           trySend();
@@ -368,7 +413,9 @@ export function apply(ctx: Context, config: ConfigType) {
       } else {
         max = true;
         max_ = true;
-        resetMax();
+        if (!config.启用定时任务) {
+          resetMax();
+        }
       }
     }
     else {
@@ -380,7 +427,7 @@ export function apply(ctx: Context, config: ConfigType) {
       const tomorrowMidnight = new Date(now);
       tomorrowMidnight.setHours(24, 0, 0, 0);
       const timeUntilTomorrowMidnight = tomorrowMidnight.getTime() - now.getTime();
-      setTimeout(() => {
+      timerId = setTimeout(() => {
         max = false;
         max_ = false;
         if (config.使用备用频道) {
