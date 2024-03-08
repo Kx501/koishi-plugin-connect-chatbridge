@@ -5,8 +5,6 @@ import axios from 'axios';
 export const name = 'connect-chatbridge';
 
 export const usage = `
-启用前请确保 ws 开放的端口未被占用，否则将导致实例崩溃！！！
-
 短网址服务采用: https://www.urlc.cn/
 
 修改后的Chatbridge见: https://github.com/Kxy051/ChatBridge
