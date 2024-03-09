@@ -224,7 +224,7 @@ export function apply(ctx: Context, config: ConfigType) {
     }
     else if (config.短链接服务 === '删除') {
       return '';
-    }
+    } else { return originalUrl; }
   }
 
   function startServer() {
