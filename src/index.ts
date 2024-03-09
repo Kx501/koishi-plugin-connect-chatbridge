@@ -22,6 +22,7 @@ interface ConfigType {
   频道内触发指令?: string;
   指令转发MC消息: boolean;
   游戏内触发指令?: string;
+  短链接服务: any;
   urlAppId: string;
   urlAppSecret: string;
   使用被动方式转发: boolean;
@@ -48,6 +49,11 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     游戏内触发指令: Schema.string().default('qq').description('Minecraft 内发送消息到 QQ 的指令，如有前缀请加上。')
   }).description('消息相关设置'),
   Schema.object({
+    短链接服务: Schema.union([
+      Schema.const(true).description('开启'),
+      Schema.const(false).description('关闭'),
+      Schema.const('删除').description('直接删除链接'),
+    ]).role('radio'),
     urlAppId: Schema.string().role('secret').description('短链接服务的 id。').deprecated(),
     urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required()
   }).description('短链接服务相关设置'),
@@ -194,25 +200,30 @@ export function apply(ctx: Context, config: ConfigType) {
   }
 
   async function generateShortUrl(originalUrl: string) {
-    try {
-      const formattedTomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      })
+    if (config.短链接服务) {
+      try {
+        const formattedTomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        })
 
-      const requestData = { url: originalUrl, expiry: formattedTomorrow };
-      const headers = { 'Authorization': 'Token ' + config.urlAppSecret, 'Content-Type': 'application/json' };
-      const response = await axios.post('https://www.urlc.cn/api/url/add', requestData, { headers });
-      const { error, short, msg } = response.data;
+        const requestData = { url: originalUrl, expiry: formattedTomorrow };
+        const headers = { 'Authorization': 'Token ' + config.urlAppSecret, 'Content-Type': 'application/json' };
+        const response = await axios.post('https://www.urlc.cn/api/url/add', requestData, { headers });
+        const { error, short, msg } = response.data;
 
-      if (error === 0) {
-        return short;
-      } else {
-        throw new Error(`Error: ${msg}`);
+        if (error === 0) {
+          return short;
+        } else {
+          throw new Error(`Error: ${msg}`);
+        }
+      } catch (error) {
+        throw new Error(`生成短链接出错: ${error}`);
       }
-    } catch (error) {
-      throw new Error(`Error in generateShortUrl: ${error}`);
+    }
+    else if (config.短链接服务 === '删除') {
+      return '';
     }
   }
 
