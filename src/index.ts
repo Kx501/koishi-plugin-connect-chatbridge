@@ -286,7 +286,7 @@ export function apply(ctx: Context, config: ConfigType) {
 
     if (now >= stopTime && now <= startTime) {
       const timeUntilNextStart = startTime.getTime() - now.getTime();
-      logger.debug(`距下一次启动还剩：${timeUntilNextStart} ms。`);
+      logger.debug(`距下一次启动还剩：${timeUntilNextStart / 60000} min。`);
       timerId = setTimeout(() => {
         max = false;
         max_ = false;
@@ -296,7 +296,7 @@ export function apply(ctx: Context, config: ConfigType) {
       }, timeUntilNextStart);
     } else {
       const timeUntilNextStop = stopTime.setDate(stopTime.getDate() + 1) - now.getTime();
-      logger.debug(`距下一次关闭还剩：${timeUntilNextStop} ms。`);
+      logger.debug(`距下一次关闭还剩：${timeUntilNextStop / 60000} min。`);
       timerId = setTimeout(() => {
         max = true;
         max_ = true;
