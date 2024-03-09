@@ -23,9 +23,9 @@
     "plugin"
   ],
   "peerDependencies": {
-    "axios": "*",
     "koishi": "^4.16.6",
-    "ws": "*"
+    "ws": "*",
+    "axios": "*"
   },
   "koishi": {
     "locales": [
