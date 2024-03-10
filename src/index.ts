@@ -340,7 +340,9 @@ export function apply(ctx: Context, config: ConfigType) {
       logger.info(`距下一次启动还剩：${timeUntilNextStart / 60000} min。`);
       timerId = setTimeout(() => {
         changeChannel('qqguild', tempChannel)
-        // max = false;
+        if (config.使用备用频道) {
+          max = false;
+        }
         // max_ = false;
         logger.info("定时启动转发！");
         // errorCount = 0;
@@ -490,6 +492,9 @@ export function apply(ctx: Context, config: ConfigType) {
       const timeUntilTomorrowMidnight = tomorrowMidnight.getTime() - now.getTime();
       timerId = setTimeout(() => {
         changeChannel('qqguild', tempChannel);
+        if (config.使用备用频道) {
+          max = false;
+        }
         // max = false;
         // max_ = false;
         // if (config.使用备用频道) {
