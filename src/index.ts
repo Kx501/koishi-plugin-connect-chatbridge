@@ -101,6 +101,7 @@ export function apply(ctx: Context, config: ConfigType) {
     logger.debug('机器人已登录，恢复 MC 转发。');
     max = false;
     max_ = false;
+    bot = ctx.bots[`qqguild:${config.机器人账号}`];
     if (config.启用定时任务) {
       scheduleTasks();
     }
