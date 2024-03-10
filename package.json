@@ -27,6 +27,9 @@
     "koishi": "^4.16.6",
     "ws": "*"
   },
+  "service": {
+    "required": ["database"]
+  },
   "koishi": {
     "locales": [
       "zh"
