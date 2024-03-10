@@ -64,7 +64,7 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required()
   }).description('短链接服务相关设置'),
   Schema.object({
-    启用定时任务: Schema.boolean().default(false).description('针对 QQ 凌晨有一段时间限制主动推送。'),
+    启用定时任务: Schema.boolean().default(false).description('针对 QQ 凌晨有一段时间限制主动推送。').experimental(),
     定时关闭转发频道消息: Schema.tuple([Number, Number]).default([0, 0]).description('(24小时制) 设置时，分。'),
     定时启动转发频道消息: Schema.tuple([Number, Number]).default([6, 0]).description('(24小时制) 设置时，分。')
   }).description('其他设置'),
@@ -73,7 +73,7 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     // 等待触发时长: Schema.number().default(2000).description('(毫秒) 时间段内可触发被动发送，超时采用主动发送。<br>启用后转发消息到 QQ 会有延迟，效果自行测试。').experimental(),
     使用备用频道: Schema.boolean().default(false).description('如果采用主动消息转发，在单个频道推送上限后向备用频道推送。').experimental(),
     备用转发频道: Schema.string().description('备用频道号').experimental(),
-  }).description('测试功能，针对 QQ 频道')
+  }).description('实验功能，针对 QQ 频道')
 ])
 
 export function apply(ctx: Context, config: ConfigType) {
