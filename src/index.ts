@@ -97,8 +97,8 @@ export function apply(ctx: Context, config: ConfigType) {
     // bot = ctx.bots[`qqguild:${config.机器人账号}`],
     channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`),
     tempChannel = config.频道列表['qqguild'],
-    bot = ctx.bots,
     messageQueue = [],
+    timer = false,
     // sessionFlag = false,
     // triggerSuccess = false,
     max = false,
@@ -122,8 +122,8 @@ export function apply(ctx: Context, config: ConfigType) {
     // max = false;
     // max_ = false;
     addChannel(session.platform)
-    logger.debug('机器人已登录，恢复 MC 转发。');
-    if (config.启用定时任务) {
+    logger.debug('机器人已登录。');
+    if (!timer && config.启用定时任务) {
       scheduleTasks();
     }
   })
@@ -139,12 +139,12 @@ export function apply(ctx: Context, config: ConfigType) {
       try {
 
         // ctx.database.get(channel,)
-        
-        if (bot.length === 0) {
+        if (ctx.bots.length === 0) {
           throw new Error('未检测到机器人');
         }
         logger.success('有机器人在线，开启 MC 转发。')
         if (config.启用定时任务) {
+          timer = true;
           scheduleTasks();
         }
       } catch (e) {
@@ -162,11 +162,13 @@ export function apply(ctx: Context, config: ConfigType) {
   })
 
   ctx.once('login-removed', (session) => {
-    logger.info('机器人离线！关闭 MC 转发！');
+    logger.info('机器人离线！');
     deleteChannel(session.platform)
     // max = true;
     // max_ = true;
-    clearTimeout(timerId);
+    if (ctx.bots.length === 0){
+      clearTimeout(timerId);
+    }
   })
 
   ctx.middleware(async (session, next) => {
