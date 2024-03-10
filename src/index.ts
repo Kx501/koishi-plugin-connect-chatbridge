@@ -16,24 +16,21 @@ interface ConfigType {
   enable: boolean;
   port: number;
   token: string;
-  收发消息的频道: string;
-  机器人账号: string;
-  指令转发QQ消息: boolean;
-  频道内触发指令?: string;
+  指令转发群聊消息: boolean;
+  群聊内触发指令?: string;
   指令转发MC消息: boolean;
   游戏内触发指令?: string;
+  收发消息的频道: string;
   短链接服务: any;
   urlAppId: string;
   urlAppSecret: string;
   启用定时任务: boolean;
-  定时关闭转发频道消息: any;
-  定时启动转发频道消息: any;
+  定时关闭转发群聊消息: any;
+  定时启动转发群聊消息: any;
   使用被动方式转发: boolean;
   等待触发时长: number;
   使用备用频道: boolean;
   备用转发频道: string;
-  // 群聊支持: boolean;
-  // 只开启群聊: boolean;
 }
 
 export const Config: Schema<ConfigType> = Schema.intersect([
@@ -43,35 +40,34 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     token: Schema.string().role('secret').description('建立 WebSocket 连接的 token。')
   }).description('WebSocket 相关设置'),
   Schema.object({
-    收发消息的频道: Schema.string().description('转发消息的子频道号。').required(),
-    机器人账号: Schema.string().description('机器人子频道 id。').required(),
-    指令转发QQ消息: Schema.boolean().default(false).description('是否指令触发。'),
-    频道内触发指令: Schema.string().default('mc').description('QQ 内发送消息到 Minecraft 的指令，如有前缀请加上。'),
+    指令转发群聊消息: Schema.boolean().default(false).description('是否指令触发。'),
+    群聊内触发指令: Schema.string().default('mc').description('群聊 内发送消息到 Minecraft 的指令，如有前缀请加上。'),
     指令转发MC消息: Schema.boolean().default(false).description('是否指令触发。'),
-    游戏内触发指令: Schema.string().default('qq').description('Minecraft 内发送消息到 QQ 的指令，如有前缀请加上。')
+    游戏内触发指令: Schema.string().default('ql').description('Minecraft 内发送消息到 群聊 的指令，如有前缀请加上。')
   }).description('消息相关设置'),
+  Schema.object({
+    收发消息的频道: Schema.string().description('转发消息的子频道号。').required(),
+  }).description('频道类额外设置'),
   Schema.object({
     短链接服务: Schema.union([
       Schema.const('true').description('开启'),
       Schema.const('false').description('关闭'),
       Schema.const('delete').description('直接删除链接'),
     ]).role('radio'),
-    urlAppId: Schema.string().role('secret').description('短链接服务的 id。').deprecated(),
+    urlAppId: Schema.string().role('secret').description('短链接服务的 id。后期加入支持自定义短链接服务。').deprecated(),
     urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required()
   }).description('短链接服务相关设置'),
   Schema.object({
-    启用定时任务: Schema.boolean().default(false).description('凌晨有一段时间无法推送。'),
-    定时关闭转发频道消息: Schema.tuple([Number, Number]).default([0, 0]).description('(24小时制) 设置时，分。'),
-    定时启动转发频道消息: Schema.tuple([Number, Number]).default([6, 0]).description('(24小时制) 设置时，分。')
+    启用定时任务: Schema.boolean().default(false).description('针对 QQ 凌晨有一段时间限制主动推送。'),
+    定时关闭转发群聊消息: Schema.tuple([Number, Number]).default([0, 0]).description('(24小时制) 设置时，分。'),
+    定时启动转发群聊消息: Schema.tuple([Number, Number]).default([6, 0]).description('(24小时制) 设置时，分。')
   }).description('其他设置'),
   Schema.object({
     使用被动方式转发: Schema.boolean().default(false).description('当频道内有人发言时转发消息，配合触发时长使用。').experimental(),
     等待触发时长: Schema.number().default(2000).description('(毫秒) 时间段内可触发被动发送，超时采用主动发送。<br>启用后转发消息到 QQ 会有延迟，效果自行测试。').experimental(),
     使用备用频道: Schema.boolean().default(false).description('如果采用主动消息转发，在单个频道推送上限后向备用频道推送。').experimental(),
     备用转发频道: Schema.string().description('备用频道号').experimental(),
-    // 群聊支持: Schema.boolean().default(false).description('开启 QQ群 支持，需要QQ群机器人适配器，否则报错。').experimental(),
-    // 只开启群聊: Schema.boolean().default(false).description('关闭 QQ频道 支持。').experimental(),
-  }).description('测试功能')
+  }).description('测试功能，针对 QQ 频道')
 ])
 
 export function apply(ctx: Context, config: ConfigType) {
@@ -83,12 +79,9 @@ export function apply(ctx: Context, config: ConfigType) {
     max = false,
     max_ = false,
     hasExecuted = false,
-    // errorCount = 0,
     timerId = null;
   const logger = new Logger('connect-chatbridge');
   const tempChannel = config.收发消息的频道;
-  // 选择初始机器人平台
-  // if () {}
 
   ctx.on('dispose', () => {
     if (server) {
@@ -161,7 +154,7 @@ export function apply(ctx: Context, config: ConfigType) {
       const messageData = await processMessage(session.event);
       const messagePacket = createMessagePacket(session.event.user.name, messageData);
 
-      if (!config.指令转发QQ消息 || session.elements[0].attrs.content.split(' ')[0] === config.频道内触发指令) {
+      if (!config.指令转发群聊消息 || session.elements[0].attrs.content.split(' ')[0] === config.群聊内触发指令) {
         sendMessageToClients(messagePacket);
       }
     } else {
@@ -176,7 +169,7 @@ export function apply(ctx: Context, config: ConfigType) {
       attrsTemp += await processElement(sessionEvent.message.elements[i]);
     }
 
-    if (config.指令转发QQ消息) {
+    if (config.指令转发群聊消息) {
       attrsTemp = attrsTemp.slice(attrsTemp.indexOf(' ') + 1);
     }
 
@@ -303,10 +296,10 @@ export function apply(ctx: Context, config: ConfigType) {
     const now = new Date();
     logger.debug(`当前时间：${now}`);
     const startTime = new Date(now);
-    startTime.setHours(config.定时启动转发频道消息[0], config.定时启动转发频道消息[1], 0, 0);
+    startTime.setHours(config.定时启动转发群聊消息[0], config.定时启动转发群聊消息[1], 0, 0);
     logger.debug(`自动启动时间：${startTime}`);
     const stopTime = new Date(now);
-    stopTime.setHours(config.定时关闭转发频道消息[0], config.定时关闭转发频道消息[1], 0, 0);
+    stopTime.setHours(config.定时关闭转发群聊消息[0], config.定时关闭转发群聊消息[1], 0, 0);
     logger.debug(`自动关闭时间：${stopTime}`);
 
     if (now >= stopTime && now <= startTime) {
