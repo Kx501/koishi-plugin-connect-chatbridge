@@ -48,7 +48,7 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     指令转发频道消息: Schema.boolean().default(false).description('是否指令触发。'),
     频道内触发指令: Schema.string().default('mc').description('群聊 内发送消息到 Minecraft 的指令，如有前缀请加上。'),
     指令转发MC消息: Schema.boolean().default(false).description('是否指令触发。'),
-    游戏内触发指令: Schema.string().default('ql').description('Minecraft 内发送消息到 群聊 的指令，如有前缀请加上。')
+    游戏内触发指令: Schema.string().default('pd').description('Minecraft 内发送消息到 群聊 的指令，如有前缀请加上。')
   }).description('消息相关设置'),
   Schema.object({
     群聊支持: Schema.boolean().default(false).description('是否开启 群聊 转发。'),
@@ -376,7 +376,7 @@ export function apply(ctx: Context, config: ConfigType) {
             logger.debug('开始计时');
           }
         } else {
-          await ctx.broadcast(`${message_}`);
+          await ctx.broadcast(channels, `${message_}`);
         }
       }
 
@@ -476,7 +476,7 @@ export function apply(ctx: Context, config: ConfigType) {
       const messageQueue_ = messageQueue.length;
       if (messageQueue_ > 0) {
         for (let i = 0; i < messageQueue_; i++) {
-          await ctx.broadcast(messageQueue[i]);
+          await ctx.broadcast(channels, messageQueue[i]);
         }
       }
       sessionFlag = false;
