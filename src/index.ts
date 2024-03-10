@@ -57,7 +57,7 @@ export const Config: Schema<ConfigType> = Schema.intersect([
       Schema.const('delete').description('直接删除链接'),
     ]).role('radio').default('false'),
     urlAppId: Schema.string().role('secret').description('短链接服务的 id。').deprecated(),
-    urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required()
+    urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。')
   }).description('短链接服务相关设置'),
   Schema.object({
     启用定时任务: Schema.boolean().default(false).description('凌晨有一段时间无法推送。'),
