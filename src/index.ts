@@ -398,7 +398,7 @@ export function apply(ctx: Context, config: ConfigType) {
         //     logger.debug('开始计时');
         //   }
         // } else {
-          await ctx.broadcast(channels, `${message_}`);
+          ctx.broadcast(channels, `${message_}`);
         // }
       }
 
@@ -504,7 +504,7 @@ export function apply(ctx: Context, config: ConfigType) {
       const messageQueue_ = messageQueue.length;
       if (messageQueue_ > 0) {
         for (let i = 0; i < messageQueue_; i++) {
-          await ctx.broadcast(channels, messageQueue[i]);
+          ctx.broadcast(channels, messageQueue[i]);
         }
       }
       // sessionFlag = false;
