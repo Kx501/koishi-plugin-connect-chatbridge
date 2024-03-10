@@ -99,7 +99,7 @@ export function apply(ctx: Context, config: ConfigType) {
   })
 
   ctx.once('login-added', (session) => {
-    if (session.platform === 'qqguild') {
+    if (!config.群聊支持 && session.platform === 'qqguild') {
       bot = session.bot;
     }
     max = false;
