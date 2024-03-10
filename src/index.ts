@@ -31,8 +31,8 @@ interface ConfigType {
   启用定时任务: boolean;
   定时关闭转发频道消息: any;
   定时启动转发频道消息: any;
-  使用被动方式转发: boolean;
-  等待触发时长: number;
+  // 使用被动方式转发: boolean;
+  // 等待触发时长: number;
   使用备用频道: boolean;
   备用转发频道: string;
 }
@@ -68,8 +68,8 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     定时启动转发频道消息: Schema.tuple([Number, Number]).default([6, 0]).description('(24小时制) 设置时，分。')
   }).description('其他设置'),
   Schema.object({
-    使用被动方式转发: Schema.boolean().default(false).description('当频道内有人发言时转发消息，配合触发时长使用。').experimental(),
-    等待触发时长: Schema.number().default(2000).description('(毫秒) 时间段内可触发被动发送，超时采用主动发送。<br>启用后转发消息到 QQ 会有延迟，效果自行测试。').experimental(),
+    // 使用被动方式转发: Schema.boolean().default(false).description('当频道内有人发言时转发消息，配合触发时长使用。').experimental(),
+    // 等待触发时长: Schema.number().default(2000).description('(毫秒) 时间段内可触发被动发送，超时采用主动发送。<br>启用后转发消息到 QQ 会有延迟，效果自行测试。').experimental(),
     使用备用频道: Schema.boolean().default(false).description('如果采用主动消息转发，在单个频道推送上限后向备用频道推送。').experimental(),
     备用转发频道: Schema.string().description('备用频道号').experimental(),
   }).description('测试功能，针对 QQ 频道')
@@ -83,8 +83,8 @@ export function apply(ctx: Context, config: ConfigType) {
     tempChannel = config.频道列表['qqguild'],
     bot = ctx.bots,
     messageQueue = [],
-    sessionFlag = false,
-    triggerSuccess = false,
+    // sessionFlag = false,
+    // triggerSuccess = false,
     max = false,
     max_ = false,
     hasExecuted = false,
@@ -150,18 +150,18 @@ export function apply(ctx: Context, config: ConfigType) {
   })
 
   ctx.middleware(async (session, next) => {
-    if (server && server.clients.size > 0 && session.event._data.d.channel_id === tempChannel) {
-      if (config.使用被动方式转发 && sessionFlag && !triggerSuccess) {
-        triggerSuccess = true;
-        logger.debug(`将被动发送消息队列: ${messageQueue}`);
-        while (messageQueue.length > 0) {
-          // 超时不需要中断
-          await session.send(messageQueue[0]);
-          messageQueue.shift();
-        }
-        triggerSuccess = false;
-        logger.debug('被动方式转发成功');
-      }
+    if (server && server.clients.size > 0 && session.event._data.d.channel_id === (tempChannel || config.备用转发频道)) {
+      // if (config.使用被动方式转发 && sessionFlag && !triggerSuccess) {
+      //   triggerSuccess = true;
+      //   logger.debug(`将被动发送消息队列: ${messageQueue}`);
+      //   while (messageQueue.length > 0) {
+      //     // 超时不需要中断
+      //     await session.send(messageQueue[0]);
+      //     messageQueue.shift();
+      //   }
+      //   triggerSuccess = false;
+      //   logger.debug('被动方式转发成功');
+      // }
       const messageData = await processMessage(session.event);
       const messagePacket = createMessagePacket(session.event.user.name, messageData);
 
@@ -317,8 +317,9 @@ export function apply(ctx: Context, config: ConfigType) {
       const timeUntilNextStart = startTime.getTime() - now.getTime();
       logger.info(`距下一次启动还剩：${timeUntilNextStart / 60000} min。`);
       timerId = setTimeout(() => {
-        max = false;
-        max_ = false;
+        config.频道列表['qqguild'] = `${tempChannel}`;
+        // max = false;
+        // max_ = false;
         logger.info("定时启动转发！");
         // errorCount = 0;
         scheduleTasks();
@@ -327,8 +328,9 @@ export function apply(ctx: Context, config: ConfigType) {
       const timeUntilNextStop = stopTime.setDate(stopTime.getDate() + 1) - now.getTime();
       logger.info(`距下一次关闭还剩：${timeUntilNextStop / 60000} min。`);
       timerId = setTimeout(() => {
-        max = true;
-        max_ = true;
+        delete config.频道列表['qqguild'];
+        // max = true;
+        // max_ = true;
         logger.info("定时关闭转发！");
         scheduleTasks();
       }, timeUntilNextStop);
@@ -363,21 +365,21 @@ export function apply(ctx: Context, config: ConfigType) {
         return;
       }
 
-      // 发往QQ
+      // 被动发往QQ
       async function broadcastMessage(message_: string) {
-        if (config.使用被动方式转发) {
-          messageQueue.push(message_);
-          if (!sessionFlag) {
-            sessionFlag = true;
-            ctx.setTimeout(async () => {
-              logger.debug('计时结束');
-              trySend();
-            }, config.等待触发时长);
-            logger.debug('开始计时');
-          }
-        } else {
+        // if (config.使用被动方式转发) {
+        //   messageQueue.push(message_);
+        //   if (!sessionFlag) {
+        //     sessionFlag = true;
+        //     ctx.setTimeout(async () => {
+        //       logger.debug('计时结束');
+        //       trySend();
+        //     }, config.等待触发时长);
+        //     logger.debug('开始计时');
+        //   }
+        // } else {
           await ctx.broadcast(channels, `${message_}`);
-        }
+        // }
       }
 
       // 发往QQ
@@ -427,24 +429,29 @@ export function apply(ctx: Context, config: ConfigType) {
     else if (error.message.includes('限制')) {
       logger.warn('频道推送上限！');
       if (config.使用备用频道) {
-        if (!config.使用被动方式转发) {
-          messageQueue.push(sendMessage)
-        }
+        // if (!config.使用被动方式转发) {
+        //   messageQueue.push(sendMessage)
+        // }
         logger.info('尝试使用备用频道。');
-        tempChannel = config.备用转发频道;
-        // 第二天重置，没有开启定时任务时使用
-        if (!config.启用定时任务) {
-          resetMax();
-        }
+        config.频道列表['qqguild'] = config.备用转发频道;
+        // 第一次
         if (!max) {
           max = true;
           trySend();
+          // 第二次
         } else {
-          max_ = true;
+          delete config.频道列表['qqguild'];
+          // max_ = true;
+        }
+        // 第二天重置，没有开启定时任务时使用，第一次满开始计时
+        if (!config.启用定时任务) {
+          resetMax();
         }
       } else {
-        max = true;
-        max_ = true;
+        // 未使用备用频道，未使用定时任务
+        delete config.频道列表['qqguild'];
+        // max = true;
+        // max_ = true;
         if (!config.启用定时任务) {
           resetMax();
         }
@@ -460,17 +467,18 @@ export function apply(ctx: Context, config: ConfigType) {
       tomorrowMidnight.setHours(24, 0, 0, 0);
       const timeUntilTomorrowMidnight = tomorrowMidnight.getTime() - now.getTime();
       timerId = setTimeout(() => {
-        max = false;
-        max_ = false;
-        if (config.使用备用频道) {
-          tempChannel = config.备用转发频道;
-        }
+        config.频道列表['qqguild'] = `${tempChannel}`;
+        // max = false;
+        // max_ = false;
+        // if (config.使用备用频道) {
+        //   config.频道列表['qqguild'] = config.备用转发频道;
+        // }
       }, timeUntilTomorrowMidnight);
     }
   }
 
   // 使用前确保队列中有消息
-  // 发往QQ
+  // 发往QQ，当上一次发送失败尝试重新发送
   async function trySend() {
     try {
       const messageQueue_ = messageQueue.length;
@@ -479,7 +487,7 @@ export function apply(ctx: Context, config: ConfigType) {
           await ctx.broadcast(channels, messageQueue[i]);
         }
       }
-      sessionFlag = false;
+      // sessionFlag = false;
       messageQueue = [];
     }
     catch (error) {
