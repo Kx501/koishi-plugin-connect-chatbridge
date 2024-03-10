@@ -101,12 +101,12 @@ export function apply(ctx: Context, config: ConfigType) {
   ctx.once('login-added', (session) => {
     if (session.platform === 'qqguild') {
       bot = session.bot;
-    }
-    max = false;
-    max_ = false;
-    logger.debug('机器人已登录，恢复 MC 转发。');
-    if (config.启用定时任务) {
-      scheduleTasks();
+      max = false;
+      max_ = false;
+      logger.debug('机器人已登录，恢复 MC 转发。');
+      if (config.启用定时任务) {
+        scheduleTasks();
+      }
     }
   })
 
@@ -138,11 +138,13 @@ export function apply(ctx: Context, config: ConfigType) {
     }
   })
 
-  ctx.once('login-removed', () => {
-    logger.info('机器人离线！关闭 MC 转发！');
-    max = true;
-    max_ = true;
-    clearTimeout(timerId);
+  ctx.once('login-removed', (session) => {
+    if (session.platform === 'qqguild') {
+      logger.info('机器人离线！关闭 MC 转发！');
+      max = true;
+      max_ = true;
+      clearTimeout(timerId);
+    }
   })
 
   ctx.middleware(async (session, next) => {
