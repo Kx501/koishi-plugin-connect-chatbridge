@@ -25,13 +25,15 @@ interface ConfigType {
   短链接服务: any;
   urlAppId: string;
   urlAppSecret: string;
+  启用定时任务: boolean;
+  定时关闭转发频道消息: any;
+  定时启动转发频道消息: any;
   使用被动方式转发: boolean;
   等待触发时长: number;
   使用备用频道: boolean;
   备用转发频道: string;
-  启用定时任务: boolean;
-  定时关闭转发频道消息: any;
-  定时启动转发频道消息: any;
+  群聊支持: boolean;
+  只开启群聊: boolean;
 }
 
 export const Config: Schema<ConfigType> = Schema.intersect([
@@ -58,14 +60,18 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required()
   }).description('短链接服务相关设置'),
   Schema.object({
+    启用定时任务: Schema.boolean().default(false).description('凌晨有一段时间无法推送。'),
+    定时关闭转发频道消息: Schema.tuple([Number, Number]).default([0, 0]).description('(24小时制) 设置时，分。'),
+    定时启动转发频道消息: Schema.tuple([Number, Number]).default([6, 0]).description('(24小时制) 设置时，分。')
+  }).description('其他设置'),
+  Schema.object({
     使用被动方式转发: Schema.boolean().default(false).description('当频道内有人发言时转发消息，配合触发时长使用。').experimental(),
     等待触发时长: Schema.number().default(2000).description('(毫秒) 时间段内可触发被动发送，超时采用主动发送。<br>启用后转发消息到 QQ 会有延迟，效果自行测试。').experimental(),
     使用备用频道: Schema.boolean().default(false).description('如果采用主动消息转发，在单个频道推送上限后向备用频道推送。').experimental(),
     备用转发频道: Schema.string().description('备用频道号').experimental(),
-    启用定时任务: Schema.boolean().default(false).description('凌晨有一段时间无法推送。').experimental(),
-    定时关闭转发频道消息: Schema.tuple([Number, Number]).default([0, 0]).description('(24小时制) 设置时，分。').experimental(),
-    定时启动转发频道消息: Schema.tuple([Number, Number]).default([6, 0]).description('(24小时制) 设置时，分。').experimental()
-  }).description('其他设置')
+    群聊支持: Schema.boolean().default(false).description('开启 QQ群 支持，需要QQ群机器人适配器，否则报错。').experimental(),
+    只开启群聊: Schema.boolean().default(false).description('关闭 QQ频道 支持。').experimental(),
+  }).description('测试功能')
 ])
 
 export function apply(ctx: Context, config: ConfigType) {
@@ -81,6 +87,8 @@ export function apply(ctx: Context, config: ConfigType) {
     timerId = null;
   const logger = new Logger('connect-chatbridge');
   const tempChannel = config.收发消息的频道;
+  // 选择初始机器人平台
+  // if () {}
 
   ctx.on('dispose', () => {
     if (server) {
@@ -90,7 +98,7 @@ export function apply(ctx: Context, config: ConfigType) {
   })
 
   ctx.once('login-added', () => {
-    logger.debug('机器人已登录。');
+    logger.debug('机器人已登录，恢复 MC 转发。');
     max = false;
     max_ = false;
     if (config.启用定时任务) {
@@ -107,14 +115,17 @@ export function apply(ctx: Context, config: ConfigType) {
     }
     if (config.enable) {
       try {
+        // 默认为关闭，监听登录
         await bot.getLogin();
+        // max = false;
+        // max_ = false;
         logger.success('机器人在线，开启 MC 转发。')
         if (config.启用定时任务) {
           scheduleTasks();
         }
       } catch (e) {
         if (e.message.includes("(reading 'getLogin')")) {
-          logger.info('机器人离线，关闭 MC 转发。')
+          logger.info('机器人离线，关闭 MC 转发！')
         } else {
           logger.error('机器人出错: ', e)
         }
@@ -125,7 +136,7 @@ export function apply(ctx: Context, config: ConfigType) {
   })
 
   ctx.once('login-removed', () => {
-    logger.info('机器人离线！');
+    logger.info('机器人离线！关闭 MC 转发！');
     max = true;
     max_ = true;
     clearTimeout(timerId);
@@ -297,7 +308,7 @@ export function apply(ctx: Context, config: ConfigType) {
 
     if (now >= stopTime && now <= startTime) {
       const timeUntilNextStart = startTime.getTime() - now.getTime();
-      logger.debug(`距下一次启动还剩：${timeUntilNextStart / 60000} min。`);
+      logger.info(`距下一次启动还剩：${timeUntilNextStart / 60000} min。`);
       timerId = setTimeout(() => {
         max = false;
         max_ = false;
@@ -307,7 +318,7 @@ export function apply(ctx: Context, config: ConfigType) {
       }, timeUntilNextStart);
     } else {
       const timeUntilNextStop = stopTime.setDate(stopTime.getDate() + 1) - now.getTime();
-      logger.debug(`距下一次关闭还剩：${timeUntilNextStop / 60000} min。`);
+      logger.info(`距下一次关闭还剩：${timeUntilNextStop / 60000} min。`);
       timerId = setTimeout(() => {
         max = true;
         max_ = true;
@@ -344,6 +355,8 @@ export function apply(ctx: Context, config: ConfigType) {
         }
         return;
       }
+
+      // 发往QQ
       async function broadcastMessage(message_: string) {
         if (config.使用被动方式转发) {
           messageQueue.push(message_);
@@ -360,6 +373,7 @@ export function apply(ctx: Context, config: ConfigType) {
         }
       }
 
+      // 发往QQ
       if (!/\[.*?\] <.*?>/.test(sendMessage)) {
         await broadcastMessage(sendMessage);
       } else {
@@ -448,7 +462,8 @@ export function apply(ctx: Context, config: ConfigType) {
     }
   }
 
-  //使用前确保队列中有消息
+  // 使用前确保队列中有消息
+  // 发往QQ
   async function trySend() {
     try {
       const messageQueue_ = messageQueue.length;
