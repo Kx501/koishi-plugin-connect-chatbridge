@@ -55,7 +55,7 @@ export const Config: Schema<ConfigType> = Schema.intersect([
       Schema.const('true').description('开启'),
       Schema.const('false').description('关闭'),
       Schema.const('delete').description('直接删除链接'),
-    ]).role('radio'),
+    ]).role('radio').default('false'),
     urlAppId: Schema.string().role('secret').description('短链接服务的 id。').deprecated(),
     urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required()
   }).description('短链接服务相关设置'),
@@ -99,7 +99,7 @@ export function apply(ctx: Context, config: ConfigType) {
   })
 
   ctx.once('login-added', (session) => {
-    if (!config.群聊支持 && session.platform === 'qqguild') {
+    if (session.platform === 'qqguild') {
       bot = session.bot;
     }
     max = false;
