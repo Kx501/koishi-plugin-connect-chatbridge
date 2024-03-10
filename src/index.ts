@@ -50,9 +50,9 @@ export const Config: Schema<ConfigType> = Schema.intersect([
   }).description('消息相关设置'),
   Schema.object({
     短链接服务: Schema.union([
-      Schema.const(true).description('开启'),
-      Schema.const(false).description('关闭'),
-      Schema.const('删除').description('直接删除链接'),
+      Schema.const('true').description('开启'),
+      Schema.const('false').description('关闭'),
+      Schema.const('delete').description('直接删除链接'),
     ]).role('radio'),
     urlAppId: Schema.string().role('secret').description('短链接服务的 id。').deprecated(),
     urlAppSecret: Schema.string().role('secret').description('短链接服务的密钥，api 只有一个参数时填这里。').required()
@@ -180,7 +180,7 @@ export function apply(ctx: Context, config: ConfigType) {
         }
       }
     } else if (element.type === 'img') {
-      innerAttrsTemp += ` [表情/图片] ${await generateShortUrl(element.attrs.src)}`;
+      innerAttrsTemp += ` [表情/图片] ${await generateShortUrl(element.attrs.src)} `;
     } else if (element.type === 'text') {
       const content = element.attrs.content;
       const linkPattern = /\b(?:https?):\/\/\S+\b|\bwww\.\S+\b|\[link\]\((https?|www)\:\/\/\S+\)|\S+\.(html|jpg|png|gif|mp3|mp4)\b/g;
@@ -200,7 +200,7 @@ export function apply(ctx: Context, config: ConfigType) {
   }
 
   async function generateShortUrl(originalUrl: string) {
-    if (config.短链接服务) {
+    if (config.短链接服务 === 'true') {
       try {
         const formattedTomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('zh-CN', {
           year: 'numeric',
@@ -222,8 +222,8 @@ export function apply(ctx: Context, config: ConfigType) {
         throw new Error(`生成短链接出错: ${error}`);
       }
     }
-    else if (config.短链接服务 === '删除') {
-      return '';
+    else if (config.短链接服务 === 'delete') {
+      return '省略';
     } else { return originalUrl; }
   }
 
