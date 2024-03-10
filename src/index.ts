@@ -32,8 +32,8 @@ interface ConfigType {
   等待触发时长: number;
   使用备用频道: boolean;
   备用转发频道: string;
-  群聊支持: boolean;
-  只开启群聊: boolean;
+  // 群聊支持: boolean;
+  // 只开启群聊: boolean;
 }
 
 export const Config: Schema<ConfigType> = Schema.intersect([
@@ -69,8 +69,8 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     等待触发时长: Schema.number().default(2000).description('(毫秒) 时间段内可触发被动发送，超时采用主动发送。<br>启用后转发消息到 QQ 会有延迟，效果自行测试。').experimental(),
     使用备用频道: Schema.boolean().default(false).description('如果采用主动消息转发，在单个频道推送上限后向备用频道推送。').experimental(),
     备用转发频道: Schema.string().description('备用频道号').experimental(),
-    群聊支持: Schema.boolean().default(false).description('开启 QQ群 支持，需要QQ群机器人适配器，否则报错。').experimental(),
-    只开启群聊: Schema.boolean().default(false).description('关闭 QQ频道 支持。').experimental(),
+    // 群聊支持: Schema.boolean().default(false).description('开启 QQ群 支持，需要QQ群机器人适配器，否则报错。').experimental(),
+    // 只开启群聊: Schema.boolean().default(false).description('关闭 QQ频道 支持。').experimental(),
   }).description('测试功能')
 ])
 
@@ -99,7 +99,7 @@ export function apply(ctx: Context, config: ConfigType) {
   })
 
   ctx.once('login-added', (session) => {
-    if (!config.群聊支持 && session.platform === 'qqguild') {
+    if (session.platform === 'qqguild') {
       bot = session.bot;
     }
     max = false;
