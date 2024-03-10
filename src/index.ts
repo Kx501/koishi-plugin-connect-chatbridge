@@ -51,7 +51,7 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     游戏内触发指令: Schema.string().default('pd').description('Minecraft 内发送消息到 群聊 的指令，如有前缀请加上。')
   }).description('消息相关设置'),
   Schema.object({
-    群聊支持: Schema.boolean().default(false).description('是否开启 群聊 转发。'),
+    群聊支持: Schema.boolean().default(false).description('弃用，onebot 可以当作频道转发。').deprecated(),
   }).description('群聊类额外设置'),
   Schema.object({
     短链接服务: Schema.union([
@@ -90,7 +90,6 @@ export function apply(ctx: Context, config: ConfigType) {
     hasExecuted = false,
     timerId = null;
   const logger = new Logger('connect-chatbridge');
-  console.info('机器人',bot.length)
 
   ctx.on('dispose', () => {
     if (server) {
