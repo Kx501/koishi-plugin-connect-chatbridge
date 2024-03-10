@@ -80,8 +80,8 @@ export function apply(ctx: Context, config: ConfigType) {
     messageQueue = [],
     sessionFlag = false,
     triggerSuccess = false,
-    max = true,
-    max_ = true,
+    max = false,
+    max_ = false,
     hasExecuted = false,
     // errorCount = 0,
     timerId = null;
@@ -92,16 +92,19 @@ export function apply(ctx: Context, config: ConfigType) {
 
   ctx.on('dispose', () => {
     if (server) {
+      clearTimeout(timerId);
       closeServer();
       logger.info('WebSocket 服务已关闭。');
     }
   })
 
-  ctx.once('login-added', () => {
-    logger.debug('机器人已登录，恢复 MC 转发。');
+  ctx.once('login-added', (session) => {
+    if (!config.群聊支持 && session.platform === 'qqguild') {
+      bot = session.bot;
+    }
     max = false;
     max_ = false;
-    bot = ctx.bots[`qqguild:${config.机器人账号}`];
+    logger.debug('机器人已登录，恢复 MC 转发。');
     if (config.启用定时任务) {
       scheduleTasks();
     }
@@ -116,16 +119,15 @@ export function apply(ctx: Context, config: ConfigType) {
     }
     if (config.enable) {
       try {
-        // 默认为关闭，监听登录
         await bot.getLogin();
-        // max = false;
-        // max_ = false;
         logger.success('机器人在线，开启 MC 转发。')
         if (config.启用定时任务) {
           scheduleTasks();
         }
       } catch (e) {
         if (e.message.includes("(reading 'getLogin')")) {
+          max = true;
+          max_ = true;
           logger.info('机器人离线，关闭 MC 转发！')
         } else {
           logger.error('机器人出错: ', e)
