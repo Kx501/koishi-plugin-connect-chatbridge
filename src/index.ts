@@ -1,6 +1,7 @@
 import { Context, Schema, Logger } from 'koishi';
 import * as WebSocket from 'ws';
 import axios from 'axios';
+import { channel } from 'diagnostics_channel';
 
 export const inject = ['database']
 
@@ -76,6 +77,21 @@ export const Config: Schema<ConfigType> = Schema.intersect([
 ])
 
 export function apply(ctx: Context, config: ConfigType) {
+  function addChannel(platformName: any){
+    config.频道列表[`${platformName}`];
+    channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`);
+  }
+
+  function deleteChannel(platformName: any){
+    delete config.频道列表[`${platformName}`]
+    channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`);
+  }
+
+  function changeChannel(platformName: any, value: any){
+    config.频道列表[`${platformName}`] = `${value}`;
+    channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`);
+  }
+
   let server = null,
     // 频道和群聊两套方案：频道用broadcast，群聊用....
     // bot = ctx.bots[`qqguild:${config.机器人账号}`],
@@ -103,8 +119,9 @@ export function apply(ctx: Context, config: ConfigType) {
     // if (session.platform === 'qqguild') {
       // bot = session.bot;
     // }
-    max = false;
-    max_ = false;
+    // max = false;
+    // max_ = false;
+    addChannel(session.platform)
     logger.debug('机器人已登录，恢复 MC 转发。');
     if (config.启用定时任务) {
       scheduleTasks();
@@ -120,6 +137,9 @@ export function apply(ctx: Context, config: ConfigType) {
     }
     if (config.enable) {
       try {
+
+        // ctx.database.get(channel,)
+        
         if (bot.length === 0) {
           throw new Error('未检测到机器人');
         }
@@ -141,10 +161,11 @@ export function apply(ctx: Context, config: ConfigType) {
     }
   })
 
-  ctx.once('login-removed', () => {
+  ctx.once('login-removed', (session) => {
     logger.info('机器人离线！关闭 MC 转发！');
-    max = true;
-    max_ = true;
+    deleteChannel(session.platform)
+    // max = true;
+    // max_ = true;
     clearTimeout(timerId);
   })
 
@@ -316,7 +337,7 @@ export function apply(ctx: Context, config: ConfigType) {
       const timeUntilNextStart = startTime.getTime() - now.getTime();
       logger.info(`距下一次启动还剩：${timeUntilNextStart / 60000} min。`);
       timerId = setTimeout(() => {
-        config.频道列表['qqguild'] = `${tempChannel}`;
+        changeChannel('qqguild', tempChannel)
         // max = false;
         // max_ = false;
         logger.info("定时启动转发！");
@@ -327,7 +348,7 @@ export function apply(ctx: Context, config: ConfigType) {
       const timeUntilNextStop = stopTime.setDate(stopTime.getDate() + 1) - now.getTime();
       logger.info(`距下一次关闭还剩：${timeUntilNextStop / 60000} min。`);
       timerId = setTimeout(() => {
-        delete config.频道列表['qqguild'];
+        deleteChannel('qqguild')
         // max = true;
         // max_ = true;
         logger.info("定时关闭转发！");
@@ -432,14 +453,14 @@ export function apply(ctx: Context, config: ConfigType) {
         //   messageQueue.push(sendMessage)
         // }
         logger.info('尝试使用备用频道。');
-        config.频道列表['qqguild'] = config.备用转发频道;
+        changeChannel('qqguild', config.备用转发频道);
         // 第一次
         if (!max) {
           max = true;
           trySend();
           // 第二次
         } else {
-          delete config.频道列表['qqguild'];
+          deleteChannel('qqguild');
           // max_ = true;
         }
         // 第二天重置，没有开启定时任务时使用，第一次满开始计时
@@ -448,7 +469,7 @@ export function apply(ctx: Context, config: ConfigType) {
         }
       } else {
         // 未使用备用频道，未使用定时任务
-        delete config.频道列表['qqguild'];
+        deleteChannel('qqguild');
         // max = true;
         // max_ = true;
         if (!config.启用定时任务) {
@@ -466,7 +487,7 @@ export function apply(ctx: Context, config: ConfigType) {
       tomorrowMidnight.setHours(24, 0, 0, 0);
       const timeUntilTomorrowMidnight = tomorrowMidnight.getTime() - now.getTime();
       timerId = setTimeout(() => {
-        config.频道列表['qqguild'] = `${tempChannel}`;
+        changeChannel('qqguild', tempChannel);
         // max = false;
         // max_ = false;
         // if (config.使用备用频道) {
