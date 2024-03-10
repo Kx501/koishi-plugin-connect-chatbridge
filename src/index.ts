@@ -44,7 +44,7 @@ export const Config: Schema<ConfigType> = Schema.intersect([
     token: Schema.string().role('secret').description('建立 WebSocket 连接的 token。')
   }).description('WebSocket 相关设置'),
   Schema.object({
-    频道列表: Schema.dict(String).role('table').required(),
+    频道列表: Schema.dict(String).role('table').description('平台名:频道号/群号').required(),
     指令转发频道消息: Schema.boolean().default(false).description('是否指令触发。'),
     频道内触发指令: Schema.string().default('mc').description('群聊 内发送消息到 Minecraft 的指令，如有前缀请加上。'),
     指令转发MC消息: Schema.boolean().default(false).description('是否指令触发。'),
