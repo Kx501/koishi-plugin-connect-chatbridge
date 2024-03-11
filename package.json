@@ -1,7 +1,7 @@
 {
   "name": "@kxy051/koishi-plugin-connect-chatbridge",
   "description": "在 频道/群聊 和 MC 之间转发消息。",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "contributors": [
     "Kxy051 <a2483654847@gmail.com>"
   ],
