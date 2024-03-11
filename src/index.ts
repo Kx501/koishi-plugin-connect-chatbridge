@@ -77,25 +77,30 @@ export const Config: Schema<ConfigType> = Schema.intersect([
 ])
 
 export function apply(ctx: Context, config: ConfigType) {
-  function addChannel(platformName: any){
+  function addChannel(platformName: any) {
     config.频道列表[`${platformName}`];
-    channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`);
+    // channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`);
+    getBots();
   }
 
-  function deleteChannel(platformName: any){
-    delete config.频道列表[`${platformName}`]
-    channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`);
+  function deleteChannel(platformName: any) {
+    delete config.频道列表[`${platformName}`];
+    // channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`);
+    getBots();
   }
 
-  function changeChannel(platformName: any, value: any){
+  function changeChannel(platformName: any, value: any) {
     config.频道列表[`${platformName}`] = `${value}`;
-    channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`);
+    // channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`);
+    getBots();
   }
 
   let server = null,
     // 频道和群聊两套方案：频道用broadcast，群聊用....
     // bot = ctx.bots[`qqguild:${config.机器人账号}`],
-    channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`),
+    // channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`),
+    channels: any,
+    bots = [],
     tempChannel = config.频道列表['qqguild'],
     messageQueue = [],
     timer = false,
@@ -104,8 +109,23 @@ export function apply(ctx: Context, config: ConfigType) {
     max = false,
     max_ = false,
     hasExecuted = false,
-    timerId = null;
+    timerId: any;
   const logger = new Logger('connect-chatbridge');
+
+  async function getBots() {
+    channels = config.频道列表.map((value: string) => parseInt(value));
+    const results = await ctx.database.get('channel', { id: { $in: channels } });
+
+    // 将查询结果用于获取 bots
+    results.forEach((result: any) => {
+      const { platform, selfId } = result;
+      const botKey = `${platform}:${selfId}`;
+      const bot = ctx.bots[botKey];
+      if (bot) {
+        bots.push(bot);
+      }
+    });
+  }
 
   ctx.on('dispose', () => {
     if (server) {
@@ -117,7 +137,7 @@ export function apply(ctx: Context, config: ConfigType) {
 
   ctx.once('login-added', (session) => {
     // if (session.platform === 'qqguild') {
-      // bot = session.bot;
+    // bot = session.bot;
     // }
     // max = false;
     // max_ = false;
@@ -166,7 +186,7 @@ export function apply(ctx: Context, config: ConfigType) {
     deleteChannel(session.platform)
     // max = true;
     // max_ = true;
-    if (ctx.bots.length === 0){
+    if (ctx.bots.length === 0) {
       clearTimeout(timerId);
     }
   })
@@ -402,8 +422,15 @@ export function apply(ctx: Context, config: ConfigType) {
         //     logger.debug('开始计时');
         //   }
         // } else {
-          ctx.broadcast(channels, `${message_}`);
+        //// ctx.broadcast(channels, `${message_}`);
         // }
+
+        // 依次在每一个不同的 channel 发送同一条消息
+        for (const bot of bots) {
+          for (const channelId of channels) {
+            bot.broadcast([channelId], message_);
+          }
+        }
       }
 
       // 发往QQ
