@@ -98,7 +98,7 @@ export function apply(ctx: Context, config: ConfigType) {
   let server = null,
     // 频道和群聊两套方案：频道用broadcast，群聊用....
     // bot = ctx.bots[`qqguild:${config.机器人账号}`],
-    // channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`),
+    //// channels = Object.entries(config.频道列表).map(([platform, channelId]) => `${platform}:${channelId}`),
     channels: any,
     bots = [],
     tempChannel = config.频道列表['qqguild'],
