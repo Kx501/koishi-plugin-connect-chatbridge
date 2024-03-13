@@ -192,7 +192,7 @@ export function apply(ctx: Context, config: ConfigType) {
   })
 
   ctx.middleware(async (session, next) => {
-    if (server && server.clients.size > 0 && session.event._data.d.channel_id === (tempChannel || config.备用转发频道)) {
+    if (server && server.clients.size > 0 && session.event._data.d?.channel_id === (tempChannel || config?.备用转发频道) || session.event._data.d?.guild === config?.频道列表['onebot']) {
       // if (config.使用被动方式转发 && sessionFlag && !triggerSuccess) {
       //   triggerSuccess = true;
       //   logger.debug(`将被动发送消息队列: ${messageQueue}`);
