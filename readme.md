@@ -1,3 +1,3 @@
-# koishi-plugin-connect-chatbridge
+# @kxy051/koishi-plugin-connect-chatbridge
 
 通过ChatBridge，在各平台和MC之间转发消息，施工中......
