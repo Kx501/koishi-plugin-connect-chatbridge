@@ -86,6 +86,7 @@ export function apply(ctx: Context, config: ConfigType) {
     // errorCount = 0,
     timerId = null;
   const logger = new Logger('connect-chatbridge');
+  logger.debug('调试模式开启！');
   const tempChannel = config.收发消息的频道;
   // 选择初始机器人平台
   // if () {}
@@ -111,7 +112,6 @@ export function apply(ctx: Context, config: ConfigType) {
   })
 
   ctx.on('ready', async () => {
-    logger.debug('调试模式开启！');
 
     if (server) {
       closeServer();
