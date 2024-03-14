@@ -28,7 +28,9 @@
     "ws": "*"
   },
   "service": {
-    "required": ["database"]
+    "required": [
+      "database"
+    ]
   },
   "koishi": {
     "locales": [
