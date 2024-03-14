@@ -10,9 +10,7 @@ export const name = 'connect-chatbridge';
 export const usage = `
 需要 npm/yarn 安装 ws 和 axios
 
-短网址服务采用: https://www.urlc.cn/
-
-修改后的Chatbridge见: https://github.com/Kxy051/ChatBridge
+未完工，缓慢施工中......
 `
 
 interface ConfigType {
