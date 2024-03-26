@@ -24,7 +24,7 @@
   ],
   "peerDependencies": {
     "axios": "*",
-    "koishi": "^4.16.6",
+    "koishi": "^4.17.3",
     "ws": "*"
   },
   "service": {
