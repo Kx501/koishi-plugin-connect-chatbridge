@@ -12,6 +12,8 @@ export const usage = `
 修改后的Chatbridge见: https://github.com/Kxy051/ChatBridge
 `
 
+const logger = new Logger('connect-chatbridge');
+
 interface ConfigType {
   enable: boolean;
   port: number;
@@ -85,7 +87,7 @@ export function apply(ctx: Context, config: ConfigType) {
     hasExecuted = false,
     // errorCount = 0,
     timerId = null;
-  const logger = new Logger('connect-chatbridge');
+  
   logger.debug('调试模式开启！');
   const tempChannel = config.收发消息的频道;
   // 选择初始机器人平台
@@ -99,7 +101,7 @@ export function apply(ctx: Context, config: ConfigType) {
     }
   })
 
-  ctx.once('login-added', (session) => {
+  ctx.on('login-added', (session) => {
     if (session.platform === 'qqguild') {
       bot = session.bot;
       max = false;
@@ -138,7 +140,7 @@ export function apply(ctx: Context, config: ConfigType) {
     }
   })
 
-  ctx.once('login-removed', (session) => {
+  ctx.on('login-removed', (session) => {
     if (session.platform === 'qqguild') {
       logger.info('机器人离线！关闭 MC 转发！');
       max = true;
